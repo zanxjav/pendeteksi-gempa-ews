@@ -1,12 +1,11 @@
 /*
  * ==============================================================================
- * Project: ESP32 / ESP32-C3 + HC-06 Bluetooth Interactive WiFi Manager (V2.0)
+ * Project: ESP32 / ESP32-C3 + HC-06 Bluetooth Interactive WiFi Manager (V3.0 Ultra-Reliable)
  * Author: GeoShield EWS Open Source
  * Description:
- *   Sistem menu login interaktif via Bluetooth HC-06 yang dioptimalkan untuk HP.
- *   Mendukung deteksi otomatis tanpa harus tekan enter (Timeout buffer & Auto-keyword),
- *   dukungan aplikasi Serial Bluetooth Terminal di Android/iOS, serta penyimpanan
- *   permanen SSID & Password di memori internal ESP32 (NVS Flash Preferences).
+ *   Sistem login WiFi via Bluetooth HC-06 dengan pembersih karakter tersembunyi
+ *   (CR/LF/Null byte cleaner), fitur pemilihan nomor WiFi dari hasil scan otomatis,
+ *   diagnostik status error koneksi realtime, serta penyimpanan Flash NVS.
  *
  * Pinout HC-06 ke ESP32 / ESP32-C3:
  *   HC-06 TX  -->  ESP32 RX (GPIO 4)
@@ -23,11 +22,11 @@
 #define HC06_RX 4  // Pin RX ESP32 (dihubungkan ke TX HC-06)
 #define HC06_TX 5  // Pin TX ESP32 (dihubungkan ke RX HC-06)
 
-// Gunakan Serial1 bawaan ESP32 untuk komunikasi HC-06
+// Inisialisasi UART HC-06
 #if defined(CONFIG_IDF_TARGET_ESP32C3)
-  HardwareSerial HC06(0); // ESP32-C3 Secondary UART
+  HardwareSerial HC06(0); // ESP32-C3
 #else
-  HardwareSerial HC06(1); // ESP32 Standard UART1
+  HardwareSerial HC06(1); // ESP32 Standard
 #endif
 
 Preferences preferences;
@@ -44,14 +43,19 @@ SetupState currentState = STATE_NORMAL;
 
 String inputBuffer = "";
 unsigned long lastCharTime = 0;
-const unsigned long BUFFER_TIMEOUT_MS = 250; // Auto-process jika HP tidak mengirim newline (Enter)
+const unsigned long BUFFER_TIMEOUT_MS = 250; // Timeout auto-submit jika tanpa Enter
 
 String tempSSID = "";
 String tempPass = "";
 
+// Array untuk menyimpan daftar SSID hasil scan agar bisa dipilih via angka
+String scannedSSIDs[20];
+int scannedCount = 0;
+
 // Prototipe Fungsi
 void printBoth(String msg);
 void printlnBoth(String msg);
+String cleanString(String raw);
 void showMainMenu();
 void scanNearbyWiFi();
 void connectWiFi(String ssid, String pass);
@@ -60,11 +64,11 @@ void processCommand(String input);
 void printWiFiStatus();
 
 void setup() {
-  // 1. Inisialisasi USB Serial Komputer
+  // Inisialisasi Serial Komputer
   Serial.begin(115200);
   delay(1000);
 
-  // 2. Inisialisasi UART HC-06 Bluetooth
+  // Inisialisasi UART HC-06 Bluetooth
   pinMode(HC06_RX, INPUT_PULLUP);
   pinMode(HC06_TX, OUTPUT);
   HC06.begin(9600, SERIAL_8N1, HC06_RX, HC06_TX);
@@ -72,28 +76,28 @@ void setup() {
   delay(500);
 
   printlnBoth("\r\n==========================================");
-  printlnBoth("🚀 ESP32 + HC-06 BLUETOOTH AKTIF!");
+  printlnBoth("🚀 ESP32 + HC-06 BLUETOOTH SIAP!");
   printlnBoth("==========================================");
-  printlnBoth("[INFO] RX ESP32 = GPIO 4 | TX ESP32 = GPIO 5");
+  printlnBoth("[INFO] Pin RX = GPIO 4 | Pin TX = GPIO 5");
   printlnBoth("[INFO] Baudrate = 9600 bps");
   printlnBoth("==========================================");
-  printlnBoth("👉 Ketik 'masukan wifi' atau 'menu' di HP Anda");
+  printlnBoth("👉 Kirim 'masukan wifi' atau 'menu' di HP Anda");
   printlnBoth("==========================================\r\n");
 
-  // Baca kredensial WiFi tersimpan
+  // Baca kredensial tersimpan
   loadSavedWiFi();
 }
 
 void loop() {
-  // 1. Baca data dari Bluetooth HC-06 (HP)
+  // 1. Baca dari Bluetooth HC-06 (HP)
   while (HC06.available()) {
     char c = (char)HC06.read();
-    Serial.write(c); // Echo ke Serial Monitor Komputer
+    Serial.write(c);
     lastCharTime = millis();
 
     if (c == '\r' || c == '\n') {
       if (inputBuffer.length() > 0) {
-        processCommand(inputBuffer);
+        processCommand(cleanString(inputBuffer));
         inputBuffer = "";
       }
     } else {
@@ -101,15 +105,15 @@ void loop() {
     }
   }
 
-  // 2. Baca data dari USB Serial Komputer
+  // 2. Baca dari USB Serial Komputer
   while (Serial.available()) {
     char c = (char)Serial.read();
-    HC06.write(c); // Echo ke HP via Bluetooth
+    HC06.write(c);
     lastCharTime = millis();
 
     if (c == '\r' || c == '\n') {
       if (inputBuffer.length() > 0) {
-        processCommand(inputBuffer);
+        processCommand(cleanString(inputBuffer));
         inputBuffer = "";
       }
     } else {
@@ -117,20 +121,37 @@ void loop() {
     }
   }
 
-  // 3. Auto-process jika pengguna di HP mengirim teks tanpa menekan tombol Enter (Timeout)
+  // 3. Auto-process jika di HP mengirim teks tanpa tekan Enter
   if (inputBuffer.length() > 0 && (millis() - lastCharTime > BUFFER_TIMEOUT_MS)) {
-    processCommand(inputBuffer);
+    processCommand(cleanString(inputBuffer));
     inputBuffer = "";
   }
 
   delay(10);
 }
 
+// =======================================================
+// PEMBERSIH KARAKTER TERSEMBUNYI (CR, LF, NULL, CONTROL)
+// Menghilangkan bug penyebab password gagal terautentikasi
+// =======================================================
+String cleanString(String raw) {
+  String cleaned = "";
+  for (unsigned int i = 0; i < raw.length(); i++) {
+    char c = raw.charAt(i);
+    // Hanya simpan karakter ASCII printable standar (kode 32 - 126)
+    if (c >= 32 && c <= 126) {
+      cleaned += c;
+    }
+  }
+  cleaned.trim();
+  return cleaned;
+}
+
 // ==========================================
-// PENGOLAHAN COMMAND & FORM LOGIN
+// PENGOLAHAN COMMAND & STATE LOGIN
 // ==========================================
 void processCommand(String input) {
-  input.trim();
+  input = cleanString(input);
   if (input.length() == 0) return;
 
   String lower = input;
@@ -138,22 +159,19 @@ void processCommand(String input) {
 
   switch (currentState) {
     case STATE_NORMAL: {
-      // Deteksi fleksibel kata kunci perintah
       if (lower.indexOf("wifi") != -1 || lower.indexOf("menu") != -1 || 
-          lower.indexOf("masukan") != -1 || lower.indexOf("login") != -1 || 
+          lower.indexOf("masuk") != -1 || lower.indexOf("login") != -1 || 
           lower.indexOf("set") != -1 || lower == "1" || lower == "help") {
         showMainMenu();
       } else if (lower.startsWith("set:")) {
         // Format Pintas Cepat: set:NamaWiFi,PasswordWiFi
         int commaIndex = input.indexOf(',');
         if (commaIndex != -1) {
-          String s = input.substring(4, commaIndex);
-          String p = input.substring(commaIndex + 1);
-          s.trim();
-          p.trim();
+          String s = cleanString(input.substring(4, commaIndex));
+          String p = cleanString(input.substring(commaIndex + 1));
           connectWiFi(s, p);
         } else {
-          printlnBoth("\r\n[ERROR] Format salah! Gunakan: set:NamaWiFi,PasswordWiFi\r\n");
+          printlnBoth("\r\n[ERROR] Format salah! Gunakan format: set:NamaWiFi,PasswordWiFi\r\n");
         }
       } else if (lower == "status") {
         printWiFiStatus();
@@ -161,7 +179,7 @@ void processCommand(String input) {
         scanNearbyWiFi();
       } else {
         printlnBoth("\r\n[?] Perintah diterima: \"" + input + "\"");
-        printlnBoth("💡 Ketik 'masukan wifi' atau 'menu' untuk membuka menu pengaturan.\r\n");
+        printlnBoth("💡 Ketik 'masukan wifi' atau 'menu' untuk membuka menu.\r\n");
       }
       break;
     }
@@ -169,14 +187,17 @@ void processCommand(String input) {
     case STATE_MENU: {
       if (input == "1" || lower.indexOf("scan") != -1) {
         scanNearbyWiFi();
-        printlnBoth("\r\n👉 Ketik [2] untuk memasukkan WiFi atau [5] untuk keluar.");
       } else if (input == "2" || lower.indexOf("masuk") != -1 || lower.indexOf("wifi") != -1 || lower.indexOf("login") != -1) {
         currentState = STATE_INPUT_SSID;
         printlnBoth("\r\n------------------------------------------");
         printlnBoth("🔑 [HALAMAN LOGIN WIFI]");
         printlnBoth("------------------------------------------");
-        printlnBoth("Langkah 1/2: Masukkan Nama WiFi (SSID):");
-        printBoth("SSID -> ");
+        if (scannedCount > 0) {
+          printlnBoth("💡 Tips: Anda bisa ketik nomor WiFi hasil scan (cth: 1, 2) atau ketik nama SSID manual:");
+        } else {
+          printlnBoth("Langkah 1/2: Masukkan Nama WiFi (SSID):");
+        }
+        printBoth("SSID / Nomor -> ");
       } else if (input == "3" || lower.indexOf("status") != -1) {
         printWiFiStatus();
         showMainMenu();
@@ -196,10 +217,19 @@ void processCommand(String input) {
     }
 
     case STATE_INPUT_SSID: {
-      tempSSID = input;
+      // Cek apakah user menginput nomor dari hasil scan
+      int choiceNum = input.toInt();
+      if (choiceNum >= 1 && choiceNum <= scannedCount) {
+        tempSSID = scannedSSIDs[choiceNum - 1];
+        printlnBoth("\r\n👉 Anda memilih nomor [" + String(choiceNum) + "]: \"" + tempSSID + "\"");
+      } else {
+        tempSSID = input;
+      }
+
       currentState = STATE_INPUT_PASS;
-      printlnBoth("\r\n✅ [OK] Nama WiFi tersimpan: \"" + tempSSID + "\"");
-      printlnBoth("Langkah 2/2: Masukkan Password WiFi (Ketik 'none' jika tanpa password):");
+      printlnBoth("\r\n✅ [SSID TERCATAT]: \"" + tempSSID + "\" (" + String(tempSSID.length()) + " karakter)");
+      printlnBoth("Langkah 2/2: Masukkan Password WiFi:");
+      printlnBoth("(Ketik 'none' jika WiFi tanpa password / open hotspot)");
       printBoth("Password -> ");
       break;
     }
@@ -212,10 +242,10 @@ void processCommand(String input) {
 
       printlnBoth("\r\n==========================================");
       printlnBoth("📋 KONFIRMASI DATA LOGIN:");
-      printlnBoth("   • SSID     : " + tempSSID);
-      printlnBoth("   • Password : " + (tempPass.length() > 0 ? "******** (" + String(tempPass.length()) + " karakter)" : "[Tanpa Password]"));
+      printlnBoth("   • SSID     : [" + tempSSID + "]");
+      printlnBoth("   • Password : " + (tempPass.length() > 0 ? "[" + tempPass + "]" : "[Tanpa Password]"));
       printlnBoth("==========================================");
-      printlnBoth("⏳ Menyimpan ke memori ESP32 & Menghubungkan...");
+      printlnBoth("⏳ Menghubungkan ke jaringan WiFi...");
 
       connectWiFi(tempSSID, tempPass);
       currentState = STATE_NORMAL;
@@ -235,7 +265,7 @@ void showMainMenu() {
   printlnBoth(" [1] 🔍 Scan Daftar WiFi Sekitar");
   printlnBoth(" [2] 🔑 Masukkan Nama WiFi & Password");
   printlnBoth(" [3] 📊 Cek Status Koneksi Saat Ini");
-  printlnBoth(" [4] 🗑️  Hapus WiFi Tersimpan");
+  printlnBoth(" [4] 🗑️  Hapus Riwayat WiFi Tersimpan");
   printlnBoth(" [5] 🚪 Keluar dari Menu");
   printlnBoth("==========================================");
   printBoth("Ketik angka pilihan (1-5) -> ");
@@ -250,27 +280,44 @@ void scanNearbyWiFi() {
   WiFi.disconnect();
   delay(100);
 
-  int n = WiFi.scanNetworks();
-  if (n == 0) {
+  scannedCount = WiFi.scanNetworks();
+  if (scannedCount == 0) {
     printlnBoth("[!] Tidak ada jaringan WiFi yang terdeteksi.");
   } else {
-    printlnBoth("📡 Ditemukan " + String(n) + " jaringan WiFi:");
-    for (int i = 0; i < n; ++i) {
+    printlnBoth("\r\n📡 Ditemukan " + String(scannedCount) + " jaringan WiFi (2.4 GHz):");
+    if (scannedCount > 20) scannedCount = 20;
+    
+    for (int i = 0; i < scannedCount; ++i) {
+      scannedSSIDs[i] = WiFi.SSID(i);
       String lock = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "🔓 (Open)" : "🔒 (Terkunci)";
-      printlnBoth("   " + String(i + 1) + ". " + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + " dBm) " + lock);
+      printlnBoth("   [" + String(i + 1) + "] " + scannedSSIDs[i] + " (" + String(WiFi.RSSI(i)) + " dBm) " + lock);
       delay(10);
     }
+    printlnBoth("\r\n👉 Ketik [2] untuk memilih nama WiFi atau memasukkan password.");
   }
 }
 
-// ==========================================
-// FUNGSI HUBUNGKAN KE WIFI & SIMPAN KE FLASH
-// ==========================================
+// =======================================================
+// FUNGSI HUBUNGKAN KE WIFI DENGAN PENANGANAN LENGKAP
+// =======================================================
 void connectWiFi(String ssid, String pass) {
-  printlnBoth("\r\n[WiFi] Menghubungkan ke: " + ssid + " ...");
-  
-  WiFi.disconnect();
+  ssid = cleanString(ssid);
+  pass = cleanString(pass);
+
+  if (ssid.length() == 0) {
+    printlnBoth("[ERROR] Nama WiFi (SSID) tidak boleh kosong!\r\n");
+    return;
+  }
+
+  printlnBoth("\r\n[WiFi] Reset radio WiFi ESP32...");
+  WiFi.persistent(false);
+  WiFi.disconnect(true, true);
+  delay(300);
+
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false); // Nonaktifkan power saving untuk koneksi maksimal
+
+  printlnBoth("[WiFi] Mengirim permintaan koneksi ke: \"" + ssid + "\"");
   
   if (pass.length() > 0) {
     WiFi.begin(ssid.c_str(), pass.c_str());
@@ -278,20 +325,35 @@ void connectWiFi(String ssid, String pass) {
     WiFi.begin(ssid.c_str());
   }
 
+  // Coba hubungkan hingga 40 siklus (sekitar 20 detik)
   int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 25) {
+  bool isConnected = false;
+
+  while (retries < 40) {
     delay(500);
-    printBoth(".");
     retries++;
+
+    wl_status_t st = WiFi.status();
+    if (st == WL_CONNECTED) {
+      isConnected = true;
+      break;
+    } else if (st == WL_CONNECT_FAILED) {
+      printBoth("[X]");
+    } else if (st == WL_NO_SSID_AVAIL) {
+      printBoth("[?]");
+    } else {
+      printBoth(".");
+    }
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (isConnected || WiFi.status() == WL_CONNECTED) {
     printlnBoth("\r\n\r\n==========================================");
-    printlnBoth("✅ [LOGIN BERHASIL] WiFi Terkoneksi!");
+    printlnBoth("✅ [LOGIN BERHASIL] ESP32 TERKONEKSI!");
     printlnBoth("==========================================");
-    printlnBoth("   • SSID       : " + WiFi.SSID());
+    printlnBoth("   • Nama WiFi  : " + WiFi.SSID());
     printlnBoth("   • IP Address : " + WiFi.localIP().toString());
     printlnBoth("   • Sinyal RSSI: " + String(WiFi.RSSI()) + " dBm");
+    printlnBoth("   • Gateway    : " + WiFi.gatewayIP().toString());
     printlnBoth("==========================================");
 
     // Simpan permanen ke NVS Preferences ESP32
@@ -299,11 +361,26 @@ void connectWiFi(String ssid, String pass) {
     preferences.putString("ssid", ssid);
     preferences.putString("pass", pass);
     preferences.end();
-    printlnBoth("💾 [MEMORI] Kredensial WiFi tersimpan di ESP32!\r\n");
+    printlnBoth("💾 [MEMORI] Kredensial WiFi berhasil disimpan secara permanen di ESP32!\r\n");
   } else {
-    printlnBoth("\r\n\r\n❌ [LOGIN GAGAL] Tidak dapat terhubung ke WiFi.");
-    printlnBoth("   Periksa apakah SSID dan Password sudah benar.");
-    printlnBoth("   Ketik 'menu' untuk mencoba kembali.\r\n");
+    wl_status_t finalStatus = WiFi.status();
+    printlnBoth("\r\n\r\n==========================================");
+    printlnBoth("❌ [GAGAL TERHUBUNG]");
+    printlnBoth("==========================================");
+    
+    if (finalStatus == WL_NO_SSID_AVAIL) {
+      printlnBoth("   Penyebab: Nama WiFi \"" + ssid + "\" TIDAK DITEMUKAN!");
+      printlnBoth("   • Pastikan WiFi router/Hotspot berada pada frekuensi 2.4 GHz (ESP32 tidak mendukung 5 GHz murni).");
+      printlnBoth("   • Pastikan jarak ESP32 tidak terlalu jauh dari router.");
+    } else if (finalStatus == WL_CONNECT_FAILED) {
+      printlnBoth("   Penyebab: PASSWORD SALAH untuk WiFi \"" + ssid + "\".");
+      printlnBoth("   • Periksa huruf besar/kecil pada password.");
+    } else {
+      printlnBoth("   Penyebab: Timeout saat meminta IP Address (Status Code: " + String(finalStatus) + ").");
+      printlnBoth("   • Coba hidupkan ulang Hotspot HP Anda atau dekatan ESP32 ke router.");
+    }
+    printlnBoth("==========================================");
+    printlnBoth("💡 Ketik 'masukan wifi' atau 'menu' untuk mencoba login kembali.\r\n");
   }
 }
 
@@ -312,13 +389,13 @@ void connectWiFi(String ssid, String pass) {
 // ==========================================
 void loadSavedWiFi() {
   preferences.begin("wifi-config", true);
-  String savedSSID = preferences.getString("ssid", "");
-  String savedPass = preferences.getString("pass", "");
+  String savedSSID = cleanString(preferences.getString("ssid", ""));
+  String savedPass = cleanString(preferences.getString("pass", ""));
   preferences.end();
 
   if (savedSSID.length() > 0) {
-    printlnBoth("[MEMORI] Ditemukan WiFi tersimpan: " + savedSSID);
-    printlnBoth("[MEMORI] Menghubungkan otomatis...");
+    printlnBoth("[MEMORI] Ditemukan profil WiFi tersimpan: \"" + savedSSID + "\"");
+    printlnBoth("[MEMORI] Mencoba auto-connect...");
     connectWiFi(savedSSID, savedPass);
   } else {
     printlnBoth("[MEMORI] Belum ada konfigurasi WiFi tersimpan.");
