@@ -1,0 +1,672 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoShield EWS - Django Disaster Monitoring System</title>
+    <meta name="description" content="Sistem peringatan dini (Early Warning System) dan monitoring gempa bumi, banjir, curah hujan, dan kualitas air (TDS) berbasis Django Full-Stack & OpenStreetMap.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌋</text></svg>">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet CSS (OpenStreetMap GIS) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js for real-time telemetry -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- App Stylesheet -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body class="dark-theme">
+    <!-- EWS Emergency Alert Overlay (Hidden by default) -->
+    <div id="ews-alert-overlay" class="ews-overlay hidden">
+        <div class="alert-pulse-bg"></div>
+        <div class="alert-modal">
+            <div class="alert-badge"><i class="fa-solid fa-triangle-exclamation"></i> PERINGATAN DINI AKTIF</div>
+            <h2 id="alert-modal-title">GEMPA BUMI TERDETEKSI!</h2>
+            <p id="alert-modal-desc">Intensitas getaran melebihi batas aman. Segera lakukan evakuasi ke tempat terbuka!</p>
+            <div class="alert-stats-grid">
+                <div class="alert-stat-card">
+                    <span class="label">Estimasi Magnitudo</span>
+                    <span id="alert-mag-val" class="val text-danger">6.4 M</span>
+                </div>
+                <div class="alert-stat-card">
+                    <span class="label">Skala MMI</span>
+                    <span id="alert-mmi-val" class="val text-danger">VI (Kuat)</span>
+                </div>
+                <div class="alert-stat-card">
+                    <span class="label">Status Banjir / Air</span>
+                    <span id="alert-flood-val" class="val text-warning">Siaga 2</span>
+                </div>
+            </div>
+            <div class="alert-actions">
+                <button id="btn-silence-alarm" class="btn btn-warning"><i class="fa-solid fa-volume-xmark"></i> Matikan Sirine</button>
+                <button id="btn-dismiss-alert" class="btn btn-secondary">Tutup Notifikasi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application Shell -->
+    <div class="app-container">
+        <!-- Top Navigation Bar -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-satellite-dish"></i>
+                    <span class="pulse-ring"></span>
+                </div>
+                <div class="brand-text">
+                    <h1>GeoShield <span>Django EWS</span></h1>
+                    <span class="tagline">Backend Server Python Django & OpenStreetMap Real-Time</span>
+                </div>
+            </div>
+
+            <!-- Global Status Pills -->
+            <div class="header-status-group">
+                <div class="status-badge" id="system-status-badge">
+                    <span class="status-dot green"></span>
+                    <span class="status-label">SISTEM: <strong>NORMAL</strong></span>
+                </div>
+                <div class="status-badge live-clock">
+                    <i class="fa-regular fa-clock"></i>
+                    <span id="live-time-display">--:--:-- WIB</span>
+                </div>
+                <div class="status-badge connection-badge" id="iot-conn-badge">
+                    <i class="fa-solid fa-database"></i>
+                    <span id="iot-conn-status">Django Backend: Active</span>
+                </div>
+            </div>
+
+            <!-- Header Action Buttons -->
+            <div class="header-actions">
+                <button id="btn-toggle-sound" class="btn-icon" title="Toggle Suara Sirine">
+                    <i class="fa-solid fa-volume-high" id="sound-icon"></i>
+                </button>
+                <a href="/admin/" target="_blank" class="btn btn-outline" title="Buka Django Admin Panel">
+                    <i class="fa-solid fa-user-shield text-warning"></i> Admin Panel
+                </a>
+                <button id="btn-open-config" class="btn btn-outline" title="Pengaturan Lokasi & Google Maps API">
+                    <i class="fa-solid fa-sliders"></i> Konfigurasi
+                </button>
+                <button id="btn-open-hardware" class="btn btn-outline" title="Panduan Sirkuit & Firmware ESP32">
+                    <i class="fa-solid fa-microchip"></i> Hardware
+                </button>
+                <a href="https://github.com/zanxjav/pendeteksi-gempa-ews" target="_blank" id="btn-github-repo" class="btn btn-primary" title="Buka Kode Sumber di GitHub">
+                    <i class="fa-brands fa-github"></i> Repository
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Content Grid -->
+        <main class="dashboard-grid">
+            
+            <!-- LEFT COLUMN: SENSOR METRICS & SEISMOGRAPH -->
+            <section class="left-panel">
+                
+                <!-- SENSOR 1: GETARAN / SEISMIK & GEMPA -->
+                <div class="card sensor-card seismic-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-chart-line text-warning"></i>
+                            <h3>Sensor Seismik (Getaran & Gempa)</h3>
+                        </div>
+                        <div class="sensor-badge" id="seismic-status-badge">AMAN</div>
+                    </div>
+
+                    <!-- Live Seismograph Canvas -->
+                    <div class="seismograph-wrapper">
+                        <div class="seismograph-header">
+                            <span class="channel-label"><i class="fa-solid fa-wave-square"></i> Gelombang Seismik Real-time (Z-Axis / MPU6050)</span>
+                            <span class="pga-label">PGA: <strong id="val-pga">0.002</strong> g</span>
+                        </div>
+                        <div class="canvas-container">
+                            <canvas id="seismographCanvas"></canvas>
+                            <div class="grid-overlay"></div>
+                        </div>
+                    </div>
+
+                    <!-- Seismic Metrics Stats Row -->
+                    <div class="metrics-row">
+                        <div class="metric-box">
+                            <span class="m-label">Frekuensi Getaran</span>
+                            <div class="m-value"><span id="val-freq">0.2</span> <small>Hz</small></div>
+                        </div>
+                        <div class="metric-box">
+                            <span class="m-label">Akselerasi Maks (gal)</span>
+                            <div class="m-value"><span id="val-gal">1.8</span> <small>cm/s²</small></div>
+                        </div>
+                        <div class="metric-box highlight">
+                            <span class="m-label">Estimasi Magnitudo</span>
+                            <div class="m-value"><span id="val-magnitude">0.0</span> <small>SR / M</small></div>
+                        </div>
+                        <div class="metric-box">
+                            <span class="m-label">Intensitas MMI</span>
+                            <div class="m-value" id="val-mmi">I (Tidak Terasa)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SENSOR 2 & 3 & 4: MULTI-DISASTER METRICS (Banjir, Hujan, TDS) -->
+                <div class="sensor-tri-grid">
+                    
+                    <!-- SENSOR 2: SENSOR BANJIR / WATER LEVEL -->
+                    <div class="card sensor-card flood-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-water text-primary"></i>
+                                <h3>Muka Air (Banjir)</h3>
+                            </div>
+                            <span class="badge badge-normal" id="flood-badge">NORMAL</span>
+                        </div>
+                        <div class="water-gauge-container">
+                            <div class="water-tank-graphic">
+                                <div class="water-fill" id="water-fill-level" style="height: 25%;">
+                                    <div class="water-wave"></div>
+                                </div>
+                                <div class="water-threshold-line danger-line" style="bottom: 75%;" title="Batas Bahaya (150 cm)"></div>
+                                <div class="water-threshold-line warning-line" style="bottom: 50%;" title="Batas Siaga (100 cm)"></div>
+                            </div>
+                            <div class="water-stats">
+                                <div class="stat-number">
+                                    <span id="val-water-level">42.5</span>
+                                    <span class="unit">cm</span>
+                                </div>
+                                <div class="stat-desc">Ketinggian Aliran Sungai/Drainase</div>
+                                <div class="stat-limits">
+                                    <span>Siaga: <strong>100cm</strong></span>
+                                    <span>Awas: <strong>150cm</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SENSOR 3: SENSOR HUJAN -->
+                    <div class="card sensor-card rain-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-cloud-showers-heavy text-info"></i>
+                                <h3>Sensor Hujan</h3>
+                            </div>
+                            <span class="badge badge-normal" id="rain-badge">CERAH</span>
+                        </div>
+                        <div class="rain-data-display">
+                            <div class="rain-icon-box" id="rain-icon-box">
+                                <i class="fa-solid fa-cloud-sun"></i>
+                            </div>
+                            <div class="rain-stats">
+                                <div class="stat-number">
+                                    <span id="val-rain-rate">0.0</span>
+                                    <span class="unit">mm/jam</span>
+                                </div>
+                                <div class="stat-desc" id="rain-condition-text">Tidak ada presipitasi</div>
+                                <div class="stat-analog">
+                                    <span>Sensor Analog: <strong id="val-rain-raw">4095</strong> (Kering)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SENSOR 4: SENSOR TDS (KUALITAS AIR) -->
+                    <div class="card sensor-card tds-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-flask-vial text-emerald"></i>
+                                <h3>Sensor TDS Air</h3>
+                            </div>
+                            <span class="badge badge-normal" id="tds-badge">BERSIH</span>
+                        </div>
+                        <div class="tds-data-display">
+                            <div class="tds-circle-meter">
+                                <svg viewBox="0 0 36 36" class="circular-chart">
+                                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path class="circle" id="tds-circle-progress" stroke-dasharray="30, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <div class="circle-text">
+                                    <span id="val-tds">148</span>
+                                    <small>PPM</small>
+                                </div>
+                            </div>
+                            <div class="tds-info">
+                                <div class="tds-quality" id="tds-quality-text">Air Layak / Aman</div>
+                                <div class="tds-desc">Deteksi kontaminasi lumpur & partikel air saat banjir atau gempa</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- SIMULATOR & TESTING CONTROLS -->
+                <div class="card simulator-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-gamepad text-secondary"></i>
+                            <h3>Simulator Bencana & Testing EWS</h3>
+                        </div>
+                        <span class="badge badge-info">Tool Uji Coba</span>
+                    </div>
+                    <div class="simulator-controls">
+                        <button class="btn-sim" id="btn-sim-normal" title="Kondisi Normal"><i class="fa-solid fa-shield-halved"></i> Reset Normal</button>
+                        <button class="btn-sim sim-warning" id="btn-sim-light-quake" title="Simulasi Gempa Ringan (3.5 SR)"><i class="fa-solid fa-house-chimney-crack"></i> Gempa Ringan (3.5 SR)</button>
+                        <button class="btn-sim sim-danger" id="btn-sim-heavy-quake" title="Simulasi Gempa Kuat (6.8 SR)"><i class="fa-solid fa-burst"></i> Gempa Dahsyat (6.8 SR)</button>
+                        <button class="btn-sim sim-flood" id="btn-sim-rain-flood" title="Simulasi Hujan Lebat & Banjir"><i class="fa-solid fa-cloud-showers-water"></i> Banjir & Hujan Lebat</button>
+                        <button class="btn-sim sim-combined" id="btn-sim-emergency" title="Simulasi Bencana Multi-Kondisi"><i class="fa-solid fa-triangle-exclamation"></i> Skenario Darurat Total</button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- RIGHT COLUMN: INTERACTIVE GIS MAPPING & LIVE CHARTS -->
+            <section class="right-panel">
+                
+                <!-- VIEW MODE SWITCHER TABS -->
+                <div class="view-tabs-header">
+                    <div class="view-tabs-group">
+                        <button class="btn-tab-view active" id="tab-btn-map" data-view="map">
+                            <i class="fa-solid fa-map-location-dot text-success"></i> Peta OpenStreetMap (GIS)
+                        </button>
+                        <button class="btn-tab-view" id="tab-btn-charts" data-view="charts">
+                            <i class="fa-solid fa-chart-line text-primary"></i> Grafik Telemetri Lengkap
+                        </button>
+                        <button class="btn-tab-view" id="tab-btn-split" data-view="split">
+                            <i class="fa-solid fa-table-columns text-warning"></i> Tampilan Split (Peta + Grafik)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GIS MAP CARD -->
+                <div class="card map-card" id="main-map-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-map text-success"></i>
+                            <h3>Pemantauan Geospasial OpenStreetMap</h3>
+                        </div>
+                        
+                        <!-- Map Layer & Controls Toolbar -->
+                        <div class="map-toolbar">
+                            <div class="select-wrapper">
+                                <select id="map-engine-select" title="Pilih Engine Peta OpenStreetMap">
+                                    <option value="leaflet-street">OpenStreetMap (Standard)</option>
+                                    <option value="leaflet-dark">OpenStreetMap (Dark GIS)</option>
+                                    <option value="leaflet-satellite">Citra Satelit (Esri GIS)</option>
+                                    <option value="gmaps">Google Maps (API Mode)</option>
+                                </select>
+                            </div>
+                            <button id="btn-recenter-map" class="btn-sm btn-outline" title="Pusatkan ke Stasiun Sensor"><i class="fa-solid fa-crosshairs"></i> Fokus</button>
+                            <button id="btn-toggle-radius" class="btn-sm btn-outline active" title="Toggle Radius Zona Bahaya"><i class="fa-solid fa-circle-dot"></i> Radius</button>
+                            <button id="btn-quick-set-location" class="btn-sm btn-primary" title="Atur / Cari Lokasi Stasiun Sensor"><i class="fa-solid fa-location-dot"></i> Set Lokasi</button>
+                        </div>
+                    </div>
+
+                    <!-- DIRECT LOCATION SEARCH & PRESETS BAR -->
+                    <div class="map-location-bar">
+                        <div class="loc-search-box">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="map-search-input" placeholder="Ketik nama kota / daerah (cth: Padang, Palu, Bandung, Jogja)..." autocomplete="off">
+                            <button id="btn-map-search-submit" class="btn-search-go">Cari & Set</button>
+                        </div>
+                        <div class="quick-presets-group">
+                            <span class="presets-label"><i class="fa-solid fa-bolt"></i> Preset Cepat:</span>
+                            <div class="presets-scroll">
+                                <button class="btn-preset" data-name="Stasiun Jakarta Pusat" data-lat="-6.2088" data-lng="106.8456">Jakarta</button>
+                                <button class="btn-preset" data-name="Stasiun Bencana Padang (Sumbar)" data-lat="-0.9471" data-lng="100.4172">Padang</button>
+                                <button class="btn-preset" data-name="Stasiun Sesar Palu-Koro (Sulteng)" data-lat="-0.9003" data-lng="119.8780">Palu</button>
+                                <button class="btn-preset" data-name="Stasiun Seismik Yogyakarta" data-lat="-7.7956" data-lng="110.3695">Yogyakarta</button>
+                                <button class="btn-preset" data-name="Stasiun Sesar Lembang (Bandung)" data-lat="-6.8180" data-lng="107.6160">Bandung</button>
+                                <button class="btn-preset" data-name="Stasiun Sensor Bali (Denpasar)" data-lat="-8.6705" data-lng="115.2126">Bali</button>
+                                <button class="btn-preset" data-name="Stasiun Seismik Aceh (Banda Aceh)" data-lat="5.5483" data-lng="95.3238">Aceh</button>
+                                <button class="btn-preset" data-name="Stasiun Gunung Semeru / Malang" data-lat="-8.1077" data-lng="112.9224">Malang</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Map Render Container -->
+                    <div class="map-view-wrapper">
+                        <!-- Leaflet GIS Map Div -->
+                        <div id="leaflet-map" class="map-canvas"></div>
+                        <!-- Google Maps Div -->
+                        <div id="google-map" class="map-canvas hidden"></div>
+                        
+                        <!-- Floating Map Legend Overlay -->
+                        <div class="map-legend">
+                            <h4><i class="fa-solid fa-layer-group"></i> Keterangan Peta</h4>
+                            <div class="legend-item"><span class="legend-dot station-dot"></span> Stasiun Sensor Anda (Bisa Digeser)</div>
+                            <div class="legend-item"><span class="legend-dot quake-danger-dot"></span> Radius Getaran Gempa</div>
+                            <div class="legend-item"><span class="legend-dot flood-zone-dot"></span> Potensi Genangan Banjir</div>
+                            <div class="legend-item"><span class="legend-dot bmkg-dot"></span> Gempa Terkini BMKG/USGS</div>
+                        </div>
+
+                        <!-- Current Station Floating Tag (Clickable to Edit) -->
+                        <div class="station-floating-card" id="station-floating-card" title="Klik untuk ubah nama / koordinat lokasi">
+                            <div class="st-icon"><i class="fa-solid fa-tower-broadcast"></i></div>
+                            <div class="st-details">
+                                <span class="st-name" id="display-station-name">{{ station.name }}</span>
+                                <span class="st-coords" id="display-station-coords">{{ station.latitude }}° S, {{ station.longitude }}° E</span>
+                            </div>
+                            <div class="st-edit-badge"><i class="fa-solid fa-pen-to-square"></i> Ubah</div>
+                        </div>
+
+                        <!-- Pin Drop Hint Overlay -->
+                        <div class="map-hint-banner" id="map-hint-banner">
+                            <i class="fa-solid fa-hand-pointer"></i> Klik lokasi mana saja di peta atau geser pin biru untuk memindahkan stasiun sensor
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LIVE TELEMETRY CHARTS CARD -->
+                <div class="card charts-container-card hidden" id="main-charts-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-chart-area text-primary"></i>
+                            <h3>Grafik Telemetri Multi-Sensor Real-Time</h3>
+                        </div>
+                        <div class="charts-toolbar">
+                            <button id="btn-pause-charts" class="btn-sm btn-outline"><i class="fa-solid fa-pause"></i> Jeda</button>
+                            <button id="btn-clear-charts" class="btn-sm btn-outline"><i class="fa-solid fa-rotate-left"></i> Reset Grafik</button>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid Container -->
+                    <div class="charts-grid">
+                        
+                        <!-- CHART 1: SEISMIC PGA & GAL -->
+                        <div class="chart-box">
+                            <div class="chart-box-header">
+                                <span class="chart-label"><i class="fa-solid fa-wave-square text-primary"></i> Tren Getaran Seismik (PGA & Gal)</span>
+                            </div>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="chart-seismic-canvas"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- CHART 2: FLOOD & RAINFALL -->
+                        <div class="chart-box">
+                            <div class="chart-box-header">
+                                <span class="chart-label"><i class="fa-solid fa-cloud-showers-water text-info"></i> Muka Air Banjir (cm) & Curah Hujan (mm/jam)</span>
+                            </div>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="chart-flood-rain-canvas"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- CHART 3: TDS WATER QUALITY -->
+                        <div class="chart-box">
+                            <div class="chart-box-header">
+                                <span class="chart-label"><i class="fa-solid fa-flask-vial text-emerald"></i> Kualitas Air & Konsentrasi Partikel TDS (PPM)</span>
+                            </div>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="chart-tds-canvas"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- BOTTOM RIGHT: REALTIME TELEMETRY LOGS & BMKG LIVE FEED -->
+                <div class="right-sub-grid">
+                    
+                    <!-- REALTIME EVENT LOGS -->
+                    <div class="card event-log-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-list-check text-warning"></i>
+                                <h3>Riwayat Log & Database Django</h3>
+                            </div>
+                            <a href="/api/telemetry/export/" class="btn-sm btn-outline" title="Export Log ke CSV"><i class="fa-solid fa-download"></i> CSV</a>
+                        </div>
+                        <div class="log-table-container">
+                            <table class="log-table">
+                                <thead>
+                                    <tr>
+                                        <th>Waktu</th>
+                                        <th>Jenis Bencana</th>
+                                        <th>Nilai Sensor</th>
+                                        <th>Status EWS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="log-table-body">
+                                    {% for log in recent_logs %}
+                                    <tr>
+                                        <td>{{ log.timestamp|date:"H:i:s" }}</td>
+                                        <td><strong>Telemetri ESP32</strong></td>
+                                        <td>PGA: {{ log.pga_g }}g | Air: {{ log.water_level_cm }}cm</td>
+                                        <td><span class="badge {% if log.seismic_status == 'AWAS' or log.flood_status == 'AWAS' %}badge-danger{% elif log.seismic_status == 'SIAGA' or log.flood_status == 'SIAGA' %}badge-warning{% else %}badge-normal{% endif %}">{{ log.seismic_status }}</span></td>
+                                    </tr>
+                                    {% empty %}
+                                    <!-- Dynamic log rows inserted by JS -->
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- BMKG & USGS NATIONAL EARTHQUAKE FEED -->
+                    <div class="card bmkg-feed-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-earth-asia text-danger"></i>
+                                <h3>Data Gempa BMKG Terkini</h3>
+                            </div>
+                            <button id="btn-refresh-bmkg" class="btn-sm btn-outline" title="Refresh Data BMKG"><i class="fa-solid fa-rotate"></i></button>
+                        </div>
+                        <div class="bmkg-feed-content" id="bmkg-feed-content">
+                            <div class="bmkg-loading"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data BMKG Indonesia & Global USGS...</div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </section>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="app-footer">
+            <div class="footer-left">
+                <span>GeoShield Early Warning System • Python Django Full-Stack Architecture</span>
+            </div>
+            <div class="footer-center">
+                <span>API Endpoint ESP32: <code>POST /api/telemetry/</code></span>
+            </div>
+            <div class="footer-right">
+                <span>Versi 2.0.0 (Django) • Siap Terhubung ke ESP32 & Arduino</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- MODAL 1: SETTINGS & CONFIGURATION MODAL -->
+    <div id="modal-config" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-sliders"></i> Konfigurasi Stasiun & Google Maps</h3>
+                <button class="btn-close-modal" id="btn-close-config">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="form-station-config">
+                    <div class="form-group">
+                        <label for="cfg-station-name"><i class="fa-solid fa-tag text-primary"></i> Nama Stasiun Sensor / Posko ESP32</label>
+                        <input type="text" id="cfg-station-name" class="form-input" value="{{ station.name }}" placeholder="cth: Posko BPBD Kalianda / Stasiun ESP32 Lampung" required>
+                        <small class="form-hint">Nama posko atau lokasi tempat ESP32 dipasang.</small>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cfg-lat"><i class="fa-solid fa-arrows-up-down text-info"></i> Latitude (Garis Lintang)</label>
+                            <input type="text" id="cfg-lat" class="form-input" value="{{ station.latitude }}" placeholder="-6.2088 atau -5,4520" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cfg-lng"><i class="fa-solid fa-arrows-left-right text-info"></i> Longitude (Garis Bujur)</label>
+                            <input type="text" id="cfg-lng" class="form-input" value="{{ station.longitude }}" placeholder="106.8456 atau 105,3957" required>
+                        </div>
+                    </div>
+
+                    <!-- AUTO-CALIBRATION & SYNC TOOLBAR -->
+                    <div class="loc-action-buttons-group">
+                        <button type="button" id="btn-get-current-loc" class="btn btn-sm btn-outline">
+                            <i class="fa-solid fa-location-crosshairs text-primary"></i> Gunakan GPS Saya
+                        </button>
+                        <button type="button" id="btn-sync-esp-location" class="btn btn-sm btn-outline btn-esp-sync">
+                            <i class="fa-solid fa-microchip text-warning"></i> Kalibrasi dari ESP32
+                        </button>
+                    </div>
+
+                    <!-- AUTO-CALIBRATION TOGGLE CARD -->
+                    <div class="auto-sync-card">
+                        <div class="auto-sync-header">
+                            <label class="switch-toggle">
+                                <input type="checkbox" id="cfg-auto-sync-esp" checked>
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="auto-sync-text">
+                                <strong>Otomatis Kalibrasi Saat ESP32 Terhubung</strong>
+                                <small>Web akan langsung otomatis menggeser peta & menyesuaikan koordinat stasiun saat menerima data payload dari ESP32.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <div class="form-group">
+                        <label for="cfg-iot-endpoint"><i class="fa-solid fa-network-wired text-success"></i> Django REST API Telemetry Endpoint</label>
+                        <input type="text" id="cfg-iot-endpoint" class="form-input" value="/api/telemetry/latest/">
+                        <small class="form-hint">Endpoint default backend Django untuk pembaruan data sensor.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cfg-gmaps-key"><i class="fa-solid fa-map text-warning"></i> Google Maps JavaScript API Key (Opsional)</label>
+                        <input type="text" id="cfg-gmaps-key" class="form-input" placeholder="AIzaSy..." value="">
+                        <small class="form-hint">Jika dikosongkan, peta tetap berjalan normal menggunakan OpenStreetMap & Satelit GIS tanpa biaya.</small>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-cancel-config">Batal</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan & Terapkan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: HARDWARE & ESP32 CIRCUIT GUIDE MODAL -->
+    <div id="modal-hardware" class="modal-overlay hidden">
+        <div class="modal-box modal-lg">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-microchip"></i> Skema Rangkaian Sensor & Firmware ESP32</h3>
+                <button class="btn-close-modal" id="btn-close-hardware">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="hardware-guide-tabs">
+                    <button class="tab-btn active" data-tab="pinout">Pinout & Wiring</button>
+                    <button class="tab-btn" data-tab="arduino">Source Code ESP32 (.ino)</button>
+                    <button class="tab-btn" data-tab="json">Format Payload JSON</button>
+                </div>
+
+                <!-- TAB 1: PINOUT WIRING -->
+                <div class="tab-pane active" id="pane-pinout">
+                    <h4>Koneksi Pin ESP32 / ESP32-C3 ke Sensor & Bluetooth HC-06:</h4>
+                    <div class="table-responsive">
+                        <table class="hardware-table">
+                            <thead>
+                                <tr>
+                                    <th>Komponen</th>
+                                    <th>Tipe Modul</th>
+                                    <th>Pin Modul</th>
+                                    <th>Pin ESP32</th>
+                                    <th>Keterangan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Bluetooth Setup</strong></td>
+                                    <td>HC-06 Module</td>
+                                    <td>TX, RX, VCC, GND</td>
+                                    <td>GPIO 4 (RX), GPIO 5 (TX), 5V, GND</td>
+                                    <td>Menu Login WiFi via Bluetooth HP</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Getaran / Gempa</strong></td>
+                                    <td>MPU-6050 (I2C)</td>
+                                    <td>SCL, SDA, VCC, GND</td>
+                                    <td>GPIO 22 (SCL), GPIO 21 (SDA), 3.3V, GND</td>
+                                    <td>Akselerometer 3-Sumbu untuk seismograf</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Banjir (Level Air)</strong></td>
+                                    <td>HC-SR04 Ultrasonic</td>
+                                    <td>TRIG, ECHO, VCC, GND</td>
+                                    <td>GPIO 5 (TRIG), GPIO 18 (ECHO), 5V, GND</td>
+                                    <td>Mengukur jarak muka air sungai</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Sensor Hujan</strong></td>
+                                    <td>FC-37 / Raindrop</td>
+                                    <td>A0 (Analog), VCC, GND</td>
+                                    <td>GPIO 34 (ADC1), 3.3V, GND</td>
+                                    <td>Deteksi intensitas butiran hujan</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Sensor TDS</strong></td>
+                                    <td>Analog TDS Meter V1.0</td>
+                                    <td>Signal A0, VCC, GND</td>
+                                    <td>GPIO 35 (ADC1), 3.3V/5V, GND</td>
+                                    <td>Deteksi kekeruhan / zat terlarut air</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB 2: ARDUINO CODE -->
+                <div class="tab-pane" id="pane-arduino">
+                    <p>File source code tersedia di <code>firmware/esp32_disaster_station.ino</code> dan <code>firmware/esp32_c3_hc06_wifi_manager.ino</code>.</p>
+                </div>
+
+                <!-- TAB 3: JSON FORMAT -->
+                <div class="tab-pane" id="pane-json">
+                    <h4>Endpoint Django API: <code>POST /api/telemetry/</code></h4>
+                    <pre><code class="code-block">{
+  "station_id": "ST-01-ESP32",
+  "station_name": "Posko Stasiun Kalianda",
+  "seismic": {
+    "pga": 0.045,
+    "freq": 4.5
+  },
+  "flood": {
+    "waterLevelCm": 115.4
+  },
+  "rain": {
+    "rateMmh": 45.2,
+    "rawAnalog": 1240
+  },
+  "tds": {
+    "ppm": 320
+  },
+  "location": {
+    "lat": -5.452078,
+    "lng": 105.395752
+  }
+}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Application Scripts -->
+    <script src="{% static 'js/ews.js' %}"></script>
+    <script src="{% static 'js/sensors.js' %}"></script>
+    <script src="{% static 'js/charts.js' %}"></script>
+    <script src="{% static 'js/map.js' %}"></script>
+    <script src="{% static 'js/bmkg.js' %}"></script>
+    <script src="{% static 'js/iot.js' %}"></script>
+    <script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>
