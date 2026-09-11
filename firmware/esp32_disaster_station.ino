@@ -25,10 +25,11 @@ const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";
 // URL Endpoint Webhook / Backend Dashboard (Ganti dengan IP / Domain Anda)
 const char* SERVER_API_URL = "http://192.168.1.100:8080/api/telemetry";
 
-// Konfigurasi Identitas Posko / Stasiun
-const char* STATION_ID   = "ST-01-JAKARTA";
-const float STATION_LAT  = -6.2088;
-const float STATION_LNG  = 106.8456;
+// Konfigurasi Identitas Posko / Stasiun (Ubah sesuai lokasi pemasangan ESP32 Anda)
+const char* STATION_ID   = "ST-01-ESP32";
+const char* STATION_NAME = "Posko Stasiun ESP32 Kalianda (Lampung)";
+const float STATION_LAT  = -5.452078;
+const float STATION_LNG  = 105.395752;
 
 // ==========================================
 // 2. PINOUT HARDWARE ESP32
@@ -233,6 +234,7 @@ void sendTelemetryHttp(float pga, float waterLevel, int rainRaw, float rainRate,
 
   String jsonPayload = "{";
   jsonPayload += "\"station_id\":\"" + String(STATION_ID) + "\",";
+  jsonPayload += "\"station_name\":\"" + String(STATION_NAME) + "\",";
   jsonPayload += "\"seismic\":{\"pga\":" + String(pga, 4) + "},";
   jsonPayload += "\"flood\":{\"waterLevelCm\":" + String(waterLevel, 1) + "},";
   jsonPayload += "\"rain\":{\"rawAnalog\":" + String(rainRaw) + ",\"rateMmh\":" + String(rainRate, 1) + "},";

@@ -112,25 +112,49 @@ class IoTDataService {
     }
 
     // Connect to actual ESP32 HTTP Server or endpoint if configured
+    // Connect to actual ESP32 HTTP Server or endpoint if configured
     setCustomEndpoint(url) {
         this.customEndpoint = url;
         if (this.pollingTimer) clearInterval(this.pollingTimer);
 
         if (url && url.startsWith('http')) {
-            if (this.iotConnBadge) this.iotConnBadge.textContent = 'IoT: Terhubung (Polling)';
+            if (this.iotConnBadge) this.iotConnBadge.textContent = 'IoT: Terhubung ke ESP32';
             this.pollingTimer = setInterval(async () => {
                 try {
                     const res = await fetch(url);
                     const data = await res.json();
-                    if (window.sensorProcessor && data) {
-                        window.sensorProcessor.updateData(data);
+                    if (data) {
+                        this.processIncomingData(data);
                     }
                 } catch (err) {
-                    if (this.iotConnBadge) this.iotConnBadge.textContent = 'IoT: Gagal Polling';
+                    if (this.iotConnBadge) this.iotConnBadge.textContent = 'IoT: Gagal Polling ESP32';
                 }
             }, 500);
         } else {
             if (this.iotConnBadge) this.iotConnBadge.textContent = 'IoT: Simulator Mode';
+        }
+    }
+
+    // Process Ingested Data from ESP32 or Webhook
+    processIncomingData(data) {
+        // 1. Update Sensor Readings
+        if (window.sensorProcessor) {
+            window.sensorProcessor.updateData(data);
+        }
+
+        // 2. Auto-Calibrate Station Location if ESP32 sends coordinates
+        const isAutoSync = localStorage.getItem('geoshield_auto_sync_esp') !== 'false';
+        if (isAutoSync && data.location && data.location.lat && data.location.lng && window.geoMap) {
+            const espLat = parseFloat(data.location.lat);
+            const espLng = parseFloat(data.location.lng);
+            const espName = data.station_name || (data.station_id ? `Stasiun ESP32 (${data.station_id})` : null);
+
+            // Check if coordinates changed significantly
+            const distDiff = Math.abs(window.geoMap.station.lat - espLat) + Math.abs(window.geoMap.station.lng - espLng);
+            if (distDiff > 0.0001 || (espName && window.geoMap.station.name !== espName)) {
+                window.geoMap.updateStationLocation(espLat, espLng, espName);
+                this.addLog('Kalibrasi ESP32', `Lokasi disinkronkan: ${espName || 'Posko ESP32'} (${espLat.toFixed(4)}, ${espLng.toFixed(4)})`, 'NORMAL');
+            }
         }
     }
 }

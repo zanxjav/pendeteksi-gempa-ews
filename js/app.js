@@ -28,6 +28,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCloseHardware = document.getElementById('btn-close-hardware');
 
     const btnGetCurrentLoc = document.getElementById('btn-get-current-loc');
+    const btnSyncEspLocation = document.getElementById('btn-sync-esp-location');
+    const cfgAutoSyncEsp = document.getElementById('cfg-auto-sync-esp');
+
+    // Load auto-sync setting
+    const savedAutoSync = localStorage.getItem('geoshield_auto_sync_esp');
+    if (cfgAutoSyncEsp && savedAutoSync !== null) {
+        cfgAutoSyncEsp.checked = savedAutoSync === 'true';
+    }
 
     // Open/Close Config Modal
     if (btnOpenConfig && modalConfig) {
@@ -38,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('cfg-lng').value = window.geoMap.station.lng;
                 document.getElementById('cfg-gmaps-key').value = window.geoMap.googleMapsApiKey || '';
             }
+            if (window.iotService) {
+                document.getElementById('cfg-iot-endpoint').value = window.iotService.customEndpoint || '';
+            }
             modalConfig.classList.remove('hidden');
         });
     }
@@ -46,21 +57,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnCloseConfig) btnCloseConfig.addEventListener('click', closeConfig);
     if (btnCancelConfig) btnCancelConfig.addEventListener('click', closeConfig);
 
-    // Save Station Config Form
+    // Save Station Config Form (Supporting both comma ',' and dot '.')
     if (formConfig) {
         formConfig.addEventListener('submit', (e) => {
             e.preventDefault();
             const name = document.getElementById('cfg-station-name').value.trim();
-            const lat = parseFloat(document.getElementById('cfg-lat').value);
-            const lng = parseFloat(document.getElementById('cfg-lng').value);
+            
+            // Normalize Indonesian comma decimal into standard dot decimal
+            const rawLat = document.getElementById('cfg-lat').value.trim().replace(',', '.');
+            const rawLng = document.getElementById('cfg-lng').value.trim().replace(',', '.');
+            const lat = parseFloat(rawLat);
+            const lng = parseFloat(rawLng);
+
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('Format koordinat Latitude atau Longitude tidak valid. Masukkan angka seperti -6.2088 atau -5,4520');
+                return;
+            }
+
             const gkey = document.getElementById('cfg-gmaps-key').value.trim();
             const endpoint = document.getElementById('cfg-iot-endpoint').value.trim();
+            const autoSync = cfgAutoSyncEsp ? cfgAutoSyncEsp.checked : true;
+
+            localStorage.setItem('geoshield_auto_sync_esp', autoSync.toString());
 
             if (window.geoMap) {
                 window.geoMap.googleMapsApiKey = gkey;
                 window.geoMap.updateStationLocation(lat, lng, name);
             }
-            if (window.iotService && endpoint) {
+            if (window.iotService) {
                 window.iotService.setCustomEndpoint(endpoint);
             }
 
@@ -75,21 +99,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Browser Anda tidak mendukung geolokasi GPS.');
                 return;
             }
-            btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mendeteksi Lokasi GPS...';
+            btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mendeteksi GPS...';
             navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-check text-success"></i> Lokasi GPS Ditemukan!';
-                    document.getElementById('cfg-lat').value = pos.coords.latitude.toFixed(6);
-                    document.getElementById('cfg-lng').value = pos.coords.longitude.toFixed(6);
+                async (pos) => {
+                    btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-check text-success"></i> GPS Ditemukan!';
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    document.getElementById('cfg-lat').value = lat.toFixed(6);
+                    document.getElementById('cfg-lng').value = lng.toFixed(6);
+
+                    // Reverse geocode to suggest name
+                    if (window.geoMap) {
+                        try {
+                            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+                            const res = await fetch(url, { headers: { 'Accept-Language': 'id,en' } });
+                            const data = await res.json();
+                            if (data && data.address) {
+                                const city = data.address.city || data.address.town || data.address.county || data.address.state || 'Posko Saya';
+                                document.getElementById('cfg-station-name').value = `Stasiun Sensor - ${city}`;
+                            }
+                        } catch(e) {}
+                    }
+
                     setTimeout(() => {
-                        btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Gunakan Lokasi GPS Saya Saat Ini';
+                        btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-location-crosshairs text-primary"></i> Gunakan GPS Saya';
                     }, 2000);
                 },
                 (err) => {
                     alert('Gagal mengambil lokasi GPS: ' + err.message);
-                    btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Gunakan Lokasi GPS Saya Saat Ini';
+                    btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-location-crosshairs text-primary"></i> Gunakan GPS Saya';
                 }
             );
+        });
+    }
+
+    // Manual Trigger: Pull & Sync Location from ESP32 Endpoint
+    if (btnSyncEspLocation) {
+        btnSyncEspLocation.addEventListener('click', async () => {
+            const endpoint = document.getElementById('cfg-iot-endpoint').value.trim();
+            btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menghubungi ESP32...';
+
+            if (endpoint && endpoint.startsWith('http')) {
+                try {
+                    const res = await fetch(endpoint);
+                    const data = await res.json();
+                    if (data && data.location) {
+                        document.getElementById('cfg-lat').value = data.location.lat;
+                        document.getElementById('cfg-lng').value = data.location.lng;
+                        if (data.station_name || data.station_id) {
+                            document.getElementById('cfg-station-name').value = data.station_name || `Stasiun ESP32 (${data.station_id})`;
+                        }
+                        btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-check text-success"></i> Berhasil Disinkronkan!';
+                    } else {
+                        throw new Error('Format response ESP32 tidak memiliki field location');
+                    }
+                } catch (err) {
+                    alert('Gagal mengambil lokasi dari endpoint ESP32: ' + err.message + '\nPastikan ESP32 satu jaringan WiFi dan endpoint aktif.');
+                    btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-microchip text-warning"></i> Kalibrasi dari ESP32';
+                }
+            } else {
+                // If in demo simulator mode, simulate pulling from connected ESP32 node
+                setTimeout(() => {
+                    btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-check text-success"></i> Kalibrasi ESP32 OK!';
+                    document.getElementById('cfg-station-name').value = 'Stasiun ESP32 Posko Kalianda (Lampung)';
+                    document.getElementById('cfg-lat').value = '-5.452078';
+                    document.getElementById('cfg-lng').value = '105.395752';
+                    setTimeout(() => {
+                        btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-microchip text-warning"></i> Kalibrasi dari ESP32';
+                    }, 2500);
+                }, 800);
+            }
         });
     }
 

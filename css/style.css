@@ -1376,6 +1376,103 @@ body {
     margin-top: 1.5rem;
 }
 
+/* Location Action Buttons (GPS & ESP32 Sync) */
+.loc-action-buttons-group {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.btn-esp-sync {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #fef08a;
+}
+.btn-esp-sync:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: var(--clr-warning);
+    color: var(--clr-warning);
+}
+
+/* Auto-Sync Toggle Card */
+.auto-sync-card {
+    background: rgba(56, 189, 248, 0.05);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.auto-sync-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.auto-sync-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.auto-sync-text strong {
+    font-size: 0.78rem;
+    color: var(--text-main);
+}
+
+.auto-sync-text small {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+/* Switch Toggle Component */
+.switch-toggle {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.switch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(255, 255, 255, 0.15);
+    transition: .3s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--clr-primary);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+input:checked + .slider:before {
+    transform: translateX(16px);
+}
+
 /* Hardware Tabs */
 .hardware-guide-tabs {
     display: flex;

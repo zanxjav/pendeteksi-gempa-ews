@@ -413,44 +413,63 @@
             <div class="modal-body">
                 <form id="form-station-config">
                     <div class="form-group">
-                        <label for="cfg-station-name">Nama Stasiun Sensor / Posko</label>
-                        <input type="text" id="cfg-station-name" class="form-input" value="Stasiun Sensor 01 - Jakarta Pusat" required>
+                        <label for="cfg-station-name"><i class="fa-solid fa-tag text-primary"></i> Nama Stasiun Sensor / Posko ESP32</label>
+                        <input type="text" id="cfg-station-name" class="form-input" value="Stasiun Sensor 01 - Jakarta Pusat" placeholder="cth: Posko BPBD Kalianda / Stasiun ESP32 Lampung" required>
+                        <small class="form-hint">Nama posko atau lokasi tempat ESP32 dipasang.</small>
                     </div>
                     
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="cfg-lat">Latitude (Garis Lintang)</label>
-                            <input type="number" step="0.000001" id="cfg-lat" class="form-input" value="-6.2088" required>
+                            <label for="cfg-lat"><i class="fa-solid fa-arrows-up-down text-info"></i> Latitude (Garis Lintang)</label>
+                            <input type="text" id="cfg-lat" class="form-input" value="-6.2088" placeholder="-6.2088 atau -5,4520" required>
                         </div>
                         <div class="form-group">
-                            <label for="cfg-lng">Longitude (Garis Bujur)</label>
-                            <input type="number" step="0.000001" id="cfg-lng" class="form-input" value="106.8456" required>
+                            <label for="cfg-lng"><i class="fa-solid fa-arrows-left-right text-info"></i> Longitude (Garis Bujur)</label>
+                            <input type="text" id="cfg-lng" class="form-input" value="106.8456" placeholder="106.8456 atau 105,3957" required>
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <!-- AUTO-CALIBRATION & SYNC TOOLBAR -->
+                    <div class="loc-action-buttons-group">
                         <button type="button" id="btn-get-current-loc" class="btn btn-sm btn-outline">
-                            <i class="fa-solid fa-location-crosshairs"></i> Gunakan Lokasi GPS Saya Saat Ini
+                            <i class="fa-solid fa-location-crosshairs text-primary"></i> Gunakan GPS Saya
                         </button>
+                        <button type="button" id="btn-sync-esp-location" class="btn btn-sm btn-outline btn-esp-sync">
+                            <i class="fa-solid fa-microchip text-warning"></i> Kalibrasi dari ESP32
+                        </button>
+                    </div>
+
+                    <!-- AUTO-CALIBRATION TOGGLE CARD -->
+                    <div class="auto-sync-card">
+                        <div class="auto-sync-header">
+                            <label class="switch-toggle">
+                                <input type="checkbox" id="cfg-auto-sync-esp" checked>
+                                <span class="slider round"></span>
+                            </label>
+                            <div class="auto-sync-text">
+                                <strong>Otomatis Kalibrasi Saat ESP32 Terhubung</strong>
+                                <small>Web akan langsung otomatis menggeser peta & menyesuaikan koordinat stasiun saat menerima data payload dari ESP32.</small>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-divider"></div>
 
                     <div class="form-group">
-                        <label for="cfg-gmaps-key">Google Maps JavaScript API Key (Opsional)</label>
-                        <input type="text" id="cfg-gmaps-key" class="form-input" placeholder="AIzaSy..." value="">
-                        <small class="form-hint">Jika dikosongkan, peta akan secara otomatis menggunakan OpenStreetMap & Satelit GIS tanpa biaya dan tanpa perlu API Key.</small>
+                        <label for="cfg-iot-endpoint"><i class="fa-solid fa-network-wired text-success"></i> Custom IoT Webhook / IP ESP32 REST Endpoint (Opsional)</label>
+                        <input type="text" id="cfg-iot-endpoint" class="form-input" placeholder="http://192.168.1.100/api/telemetry">
+                        <small class="form-hint">Masukkan alamat IP ESP32 lokal atau server penerima data.</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="cfg-iot-endpoint">Custom IoT Webhook / REST Endpoint (Opsional)</label>
-                        <input type="text" id="cfg-iot-endpoint" class="form-input" placeholder="http://192.168.1.100:8080/api/sensor">
-                        <small class="form-hint">URL endpoint server jika ESP32 mengirim data via POST JSON.</small>
+                        <label for="cfg-gmaps-key"><i class="fa-solid fa-map text-warning"></i> Google Maps JavaScript API Key (Opsional)</label>
+                        <input type="text" id="cfg-gmaps-key" class="form-input" placeholder="AIzaSy..." value="">
+                        <small class="form-hint">Jika dikosongkan, peta tetap berjalan normal menggunakan OpenStreetMap & Satelit GIS tanpa biaya.</small>
                     </div>
 
                     <div class="form-actions">
                         <button type="button" class="btn btn-secondary" id="btn-cancel-config">Batal</button>
-                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan</button>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan & Terapkan</button>
                     </div>
                 </form>
             </div>
