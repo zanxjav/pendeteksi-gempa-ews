@@ -753,12 +753,132 @@ body {
 }
 
 /* ==========================================================================
-   Interactive GIS Map
+   View Mode Tabs (OpenStreetMap vs Live Charts vs Split View)
+   ========================================================================== */
+.view-tabs-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.view-tabs-group {
+    display: flex;
+    background: rgba(18, 26, 43, 0.85);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.3rem;
+    gap: 0.35rem;
+    backdrop-filter: blur(10px);
+    width: 100%;
+    overflow-x: auto;
+}
+
+.btn-tab-view {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--transition-smooth);
+}
+
+.btn-tab-view:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.btn-tab-view.active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: var(--clr-primary);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+}
+
+/* ==========================================================================
+   Interactive OpenStreetMap & GIS Map
    ========================================================================== */
 .map-card {
     min-height: 480px;
     display: flex;
     flex-direction: column;
+}
+
+/* ==========================================================================
+   Live Telemetry Charts Card
+   ========================================================================== */
+.charts-container-card {
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.charts-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.charts-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1;
+}
+
+.chart-box {
+    background: rgba(5, 9, 17, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-md);
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chart-box-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.chart-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.chart-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 135px;
+}
+
+/* Split View Layout Configuration */
+.split-view-active #main-map-card,
+.split-view-active #main-charts-card {
+    display: flex !important;
+}
+
+.split-view-active .map-view-wrapper {
+    min-height: 280px;
+}
+
+.split-view-active .chart-canvas-wrapper {
+    height: 105px;
 }
 
 .map-toolbar {

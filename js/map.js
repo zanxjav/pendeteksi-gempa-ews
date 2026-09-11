@@ -230,8 +230,8 @@ class GeoMappingEngine {
             maxZoom: 19
         });
 
-        // Default to Dark GIS Layer
-        this.tileLayers['leaflet-dark'].addTo(this.leafletMap);
+        // Default to OpenStreetMap Standard Layer
+        this.tileLayers['leaflet-street'].addTo(this.leafletMap);
 
         // Create Custom Animated Sensor Beacon Marker
         const beaconIcon = L.divIcon({

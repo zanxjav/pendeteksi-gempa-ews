@@ -259,24 +259,39 @@
 
             </section>
 
-            <!-- RIGHT COLUMN: INTERACTIVE GIS MAPPING & LIVE FEEDS -->
+            <!-- RIGHT COLUMN: INTERACTIVE GIS MAPPING & LIVE CHARTS -->
             <section class="right-panel">
                 
+                <!-- VIEW MODE SWITCHER TABS -->
+                <div class="view-tabs-header">
+                    <div class="view-tabs-group">
+                        <button class="btn-tab-view active" id="tab-btn-map" data-view="map">
+                            <i class="fa-solid fa-map-location-dot text-success"></i> Peta OpenStreetMap (GIS)
+                        </button>
+                        <button class="btn-tab-view" id="tab-btn-charts" data-view="charts">
+                            <i class="fa-solid fa-chart-line text-primary"></i> Grafik Telemetri Lengkap
+                        </button>
+                        <button class="btn-tab-view" id="tab-btn-split" data-view="split">
+                            <i class="fa-solid fa-table-columns text-warning"></i> Tampilan Split (Peta + Grafik)
+                        </button>
+                    </div>
+                </div>
+
                 <!-- GIS MAP CARD -->
-                <div class="card map-card">
+                <div class="card map-card" id="main-map-card">
                     <div class="card-header">
                         <div class="card-title">
-                            <i class="fa-solid fa-map-location-dot text-success"></i>
-                            <h3>Peta Monitoring Geospasial Interaktif</h3>
+                            <i class="fa-solid fa-map text-success"></i>
+                            <h3>Pemantauan Geospasial OpenStreetMap</h3>
                         </div>
                         
                         <!-- Map Layer & Controls Toolbar -->
                         <div class="map-toolbar">
                             <div class="select-wrapper">
-                                <select id="map-engine-select" title="Pilih Engine Peta">
+                                <select id="map-engine-select" title="Pilih Engine Peta OpenStreetMap">
+                                    <option value="leaflet-street">OpenStreetMap (Standard)</option>
                                     <option value="leaflet-dark">OpenStreetMap (Dark GIS)</option>
-                                    <option value="leaflet-satellite">Citra Satelit</option>
-                                    <option value="leaflet-street">Peta Jalanan (Standard)</option>
+                                    <option value="leaflet-satellite">Citra Satelit (Esri GIS)</option>
                                     <option value="gmaps">Google Maps (API Mode)</option>
                                 </select>
                             </div>
@@ -338,6 +353,55 @@
                         <div class="map-hint-banner" id="map-hint-banner">
                             <i class="fa-solid fa-hand-pointer"></i> Klik lokasi mana saja di peta atau geser pin biru untuk memindahkan stasiun sensor
                         </div>
+                    </div>
+                </div>
+
+                <!-- LIVE TELEMETRY CHARTS CARD -->
+                <div class="card charts-container-card hidden" id="main-charts-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-chart-area text-primary"></i>
+                            <h3>Grafik Telemetri Multi-Sensor Real-Time</h3>
+                        </div>
+                        <div class="charts-toolbar">
+                            <button id="btn-pause-charts" class="btn-sm btn-outline"><i class="fa-solid fa-pause"></i> Jeda</button>
+                            <button id="btn-clear-charts" class="btn-sm btn-outline"><i class="fa-solid fa-rotate-left"></i> Reset Grafik</button>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid Container -->
+                    <div class="charts-grid">
+                        
+                        <!-- CHART 1: SEISMIC PGA & GAL -->
+                        <div class="chart-box">
+                            <div class="chart-box-header">
+                                <span class="chart-label"><i class="fa-solid fa-wave-square text-primary"></i> Tren Getaran Seismik (PGA & Gal)</span>
+                            </div>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="chart-seismic-canvas"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- CHART 2: FLOOD & RAINFALL -->
+                        <div class="chart-box">
+                            <div class="chart-box-header">
+                                <span class="chart-label"><i class="fa-solid fa-cloud-showers-water text-info"></i> Muka Air Banjir (cm) & Curah Hujan (mm/jam)</span>
+                            </div>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="chart-flood-rain-canvas"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- CHART 3: TDS WATER QUALITY -->
+                        <div class="chart-box">
+                            <div class="chart-box-header">
+                                <span class="chart-label"><i class="fa-solid fa-flask-vial text-emerald"></i> Kualitas Air & Konsentrasi Partikel TDS (PPM)</span>
+                            </div>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="chart-tds-canvas"></canvas>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -660,6 +724,7 @@ void loop() {
     <!-- Application Scripts -->
     <script src="js/ews.js"></script>
     <script src="js/sensors.js"></script>
+    <script src="js/charts.js"></script>
     <script src="js/map.js"></script>
     <script src="js/bmkg.js"></script>
     <script src="js/iot.js"></script>

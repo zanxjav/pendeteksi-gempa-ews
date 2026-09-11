@@ -194,16 +194,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 3. Disaster Simulator Buttons
-    const btnSimNormal = document.getElementById('btn-sim-normal');
-    const btnSimLight = document.getElementById('btn-sim-light-quake');
-    const btnSimHeavy = document.getElementById('btn-sim-heavy-quake');
-    const btnSimFlood = document.getElementById('btn-sim-rain-flood');
-    const btnSimEmergency = document.getElementById('btn-sim-emergency');
+    // 4. View Mode Switcher (OpenStreetMap vs Live Telemetry Charts vs Split)
+    const tabViewBtns = document.querySelectorAll('.btn-tab-view');
+    const mainMapCard = document.getElementById('main-map-card');
+    const mainChartsCard = document.getElementById('main-charts-card');
+    const rightPanel = document.querySelector('.right-panel');
 
-    if (btnSimNormal) btnSimNormal.addEventListener('click', () => window.sensorProcessor && window.sensorProcessor.simulateScenario('normal'));
-    if (btnSimLight) btnSimLight.addEventListener('click', () => window.sensorProcessor && window.sensorProcessor.simulateScenario('light-quake'));
-    if (btnSimHeavy) btnSimHeavy.addEventListener('click', () => window.sensorProcessor && window.sensorProcessor.simulateScenario('heavy-quake'));
-    if (btnSimFlood) btnSimFlood.addEventListener('click', () => window.sensorProcessor && window.sensorProcessor.simulateScenario('rain-flood'));
-    if (btnSimEmergency) btnSimEmergency.addEventListener('click', () => window.sensorProcessor && window.sensorProcessor.simulateScenario('emergency'));
+    tabViewBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.getAttribute('data-view');
+            tabViewBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            if (view === 'map') {
+                if (mainMapCard) mainMapCard.classList.remove('hidden');
+                if (mainChartsCard) mainChartsCard.classList.add('hidden');
+                if (rightPanel) rightPanel.classList.remove('split-view-active');
+                if (window.geoMap && window.geoMap.leafletMap) {
+                    setTimeout(() => window.geoMap.leafletMap.invalidateSize(), 150);
+                }
+            } else if (view === 'charts') {
+                if (mainMapCard) mainMapCard.classList.add('hidden');
+                if (mainChartsCard) mainChartsCard.classList.remove('hidden');
+                if (rightPanel) rightPanel.classList.remove('split-view-active');
+            } else if (view === 'split') {
+                if (mainMapCard) mainMapCard.classList.remove('hidden');
+                if (mainChartsCard) mainChartsCard.classList.remove('hidden');
+                if (rightPanel) rightPanel.classList.add('split-view-active');
+                if (window.geoMap && window.geoMap.leafletMap) {
+                    setTimeout(() => window.geoMap.leafletMap.invalidateSize(), 150);
+                }
+            }
+        });
+    });
 });
