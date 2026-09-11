@@ -282,6 +282,29 @@
                             </div>
                             <button id="btn-recenter-map" class="btn-sm btn-outline" title="Pusatkan ke Stasiun Sensor"><i class="fa-solid fa-crosshairs"></i> Fokus</button>
                             <button id="btn-toggle-radius" class="btn-sm btn-outline active" title="Toggle Radius Zona Bahaya"><i class="fa-solid fa-circle-dot"></i> Radius</button>
+                            <button id="btn-quick-set-location" class="btn-sm btn-primary" title="Atur / Cari Lokasi Stasiun Sensor"><i class="fa-solid fa-location-dot"></i> Set Lokasi</button>
+                        </div>
+                    </div>
+
+                    <!-- DIRECT LOCATION SEARCH & PRESETS BAR -->
+                    <div class="map-location-bar">
+                        <div class="loc-search-box">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="map-search-input" placeholder="Ketik nama kota / daerah (cth: Padang, Palu, Bandung, Jogja)..." autocomplete="off">
+                            <button id="btn-map-search-submit" class="btn-search-go">Cari & Set</button>
+                        </div>
+                        <div class="quick-presets-group">
+                            <span class="presets-label"><i class="fa-solid fa-bolt"></i> Preset Cepat:</span>
+                            <div class="presets-scroll">
+                                <button class="btn-preset" data-name="Stasiun Jakarta Pusat" data-lat="-6.2088" data-lng="106.8456">Jakarta</button>
+                                <button class="btn-preset" data-name="Stasiun Bencana Padang (Sumbar)" data-lat="-0.9471" data-lng="100.4172">Padang</button>
+                                <button class="btn-preset" data-name="Stasiun Sesar Palu-Koro (Sulteng)" data-lat="-0.9003" data-lng="119.8780">Palu</button>
+                                <button class="btn-preset" data-name="Stasiun Seismik Yogyakarta" data-lat="-7.7956" data-lng="110.3695">Yogyakarta</button>
+                                <button class="btn-preset" data-name="Stasiun Sesar Lembang (Bandung)" data-lat="-6.8180" data-lng="107.6160">Bandung</button>
+                                <button class="btn-preset" data-name="Stasiun Sensor Bali (Denpasar)" data-lat="-8.6705" data-lng="115.2126">Bali</button>
+                                <button class="btn-preset" data-name="Stasiun Seismik Aceh (Banda Aceh)" data-lat="5.5483" data-lng="95.3238">Aceh</button>
+                                <button class="btn-preset" data-name="Stasiun Gunung Semeru / Malang" data-lat="-8.1077" data-lng="112.9224">Malang</button>
+                            </div>
                         </div>
                     </div>
 
@@ -295,19 +318,25 @@
                         <!-- Floating Map Legend Overlay -->
                         <div class="map-legend">
                             <h4><i class="fa-solid fa-layer-group"></i> Keterangan Peta</h4>
-                            <div class="legend-item"><span class="legend-dot station-dot"></span> Stasiun Sensor Anda</div>
+                            <div class="legend-item"><span class="legend-dot station-dot"></span> Stasiun Sensor Anda (Bisa Digeser)</div>
                             <div class="legend-item"><span class="legend-dot quake-danger-dot"></span> Radius Getaran Gempa</div>
                             <div class="legend-item"><span class="legend-dot flood-zone-dot"></span> Potensi Genangan Banjir</div>
                             <div class="legend-item"><span class="legend-dot bmkg-dot"></span> Gempa Terkini BMKG/USGS</div>
                         </div>
 
-                        <!-- Current Station Floating Tag -->
-                        <div class="station-floating-card">
+                        <!-- Current Station Floating Tag (Clickable to Edit) -->
+                        <div class="station-floating-card" id="station-floating-card" title="Klik untuk ubah nama / koordinat lokasi">
                             <div class="st-icon"><i class="fa-solid fa-tower-broadcast"></i></div>
                             <div class="st-details">
-                                <span class="st-name" id="display-station-name">Stasiun Sensor 01 - Jakarta / Pusat</span>
+                                <span class="st-name" id="display-station-name">Stasiun Sensor 01 - Jakarta Pusat</span>
                                 <span class="st-coords" id="display-station-coords">-6.2088° S, 106.8456° E</span>
                             </div>
+                            <div class="st-edit-badge"><i class="fa-solid fa-pen-to-square"></i> Ubah</div>
+                        </div>
+
+                        <!-- Pin Drop Hint Overlay -->
+                        <div class="map-hint-banner" id="map-hint-banner">
+                            <i class="fa-solid fa-hand-pointer"></i> Klik lokasi mana saja di peta atau geser pin biru untuk memindahkan stasiun sensor
                         </div>
                     </div>
                 </div>

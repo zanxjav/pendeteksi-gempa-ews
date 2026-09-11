@@ -36,10 +36,17 @@ class GeoMappingEngine {
         this.btnToggleRadius = document.getElementById('btn-toggle-radius');
         this.displayName = document.getElementById('display-station-name');
         this.displayCoords = document.getElementById('display-station-coords');
+        
+        // Location Setter controls
+        this.mapSearchInput = document.getElementById('map-search-input');
+        this.btnMapSearchSubmit = document.getElementById('btn-map-search-submit');
+        this.btnQuickSetLocation = document.getElementById('btn-quick-set-location');
+        this.stationFloatingCard = document.getElementById('station-floating-card');
 
         this.loadSavedSettings();
         this.initLeaflet();
         this.initEvents();
+        this.initLocationSetterEvents();
     }
 
     loadSavedSettings() {
@@ -90,6 +97,107 @@ class GeoMappingEngine {
                 this.btnToggleRadius.classList.toggle('active', this.showRadius);
                 this.updateCirclesVisibility();
             });
+        }
+    }
+
+    initLocationSetterEvents() {
+        // 1. Search Location Submission
+        const executeSearch = () => {
+            if (!this.mapSearchInput) return;
+            const query = this.mapSearchInput.value.trim();
+            if (query) {
+                this.searchAndSetLocation(query);
+            }
+        };
+
+        if (this.btnMapSearchSubmit) {
+            this.btnMapSearchSubmit.addEventListener('click', executeSearch);
+        }
+        if (this.mapSearchInput) {
+            this.mapSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') executeSearch();
+            });
+        }
+
+        // 2. Preset Buttons Click
+        const presetBtns = document.querySelectorAll('.btn-preset');
+        presetBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const name = btn.getAttribute('data-name');
+                const lat = parseFloat(btn.getAttribute('data-lat'));
+                const lng = parseFloat(btn.getAttribute('data-lng'));
+                this.updateStationLocation(lat, lng, name);
+                this.recenter();
+            });
+        });
+
+        // 3. Quick Set Location Button & Floating Card Click
+        if (this.btnQuickSetLocation) {
+            this.btnQuickSetLocation.addEventListener('click', () => {
+                const modal = document.getElementById('modal-config');
+                if (modal) modal.classList.remove('hidden');
+            });
+        }
+        if (this.stationFloatingCard) {
+            this.stationFloatingCard.addEventListener('click', () => {
+                const modal = document.getElementById('modal-config');
+                if (modal) modal.classList.remove('hidden');
+            });
+        }
+    }
+
+    // Geocoding: Search city / region and update map pin
+    async searchAndSetLocation(query) {
+        if (this.btnMapSearchSubmit) {
+            this.btnMapSearchSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            this.btnMapSearchSubmit.disabled = true;
+        }
+
+        try {
+            // Using OpenStreetMap Nominatim Geocoder API
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+            const res = await fetch(url, {
+                headers: { 'Accept-Language': 'id,en' }
+            });
+            const data = await res.json();
+
+            if (data && data.length > 0) {
+                const item = data[0];
+                const lat = parseFloat(item.lat);
+                const lng = parseFloat(item.lon);
+                const shortName = `Stasiun Sensor - ${item.display_name.split(',')[0]}`;
+
+                this.updateStationLocation(lat, lng, shortName);
+                this.recenter();
+                if (this.mapSearchInput) this.mapSearchInput.value = item.display_name.split(',').slice(0, 2).join(',');
+            } else {
+                alert(`Lokasi "${query}" tidak ditemukan. Coba ketik nama kota lain.`);
+            }
+        } catch (err) {
+            console.warn('Geocoding error:', err);
+            alert('Gagal mencari lokasi. Pastikan terhubung ke internet.');
+        } finally {
+            if (this.btnMapSearchSubmit) {
+                this.btnMapSearchSubmit.innerHTML = 'Cari & Set';
+                this.btnMapSearchSubmit.disabled = false;
+            }
+        }
+    }
+
+    // Reverse Geocoding: Lookup address from Lat, Lng when dragging marker
+    async reverseGeocodeAddress(lat, lng) {
+        try {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+            const res = await fetch(url, { headers: { 'Accept-Language': 'id,en' } });
+            const data = await res.json();
+            if (data && data.address) {
+                const city = data.address.city || data.address.town || data.address.county || data.address.state || 'Lokasi Kustom';
+                const name = `Stasiun Sensor - ${city}`;
+                this.station.name = name;
+                this.saveSettings();
+            }
+        } catch (e) {
+            // Silent fallback
         }
     }
 
@@ -158,11 +266,13 @@ class GeoMappingEngine {
         this.leafletStationMarker.on('dragend', (e) => {
             const pos = e.target.getLatLng();
             this.updateStationLocation(pos.lat, pos.lng);
+            this.reverseGeocodeAddress(pos.lat, pos.lng);
         });
 
         // Click anywhere to relocate station
         this.leafletMap.on('click', (e) => {
             this.updateStationLocation(e.latlng.lat, e.latlng.lng);
+            this.reverseGeocodeAddress(e.latlng.lat, e.latlng.lng);
         });
     }
 
