@@ -2,80 +2,57 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Framework: Django 5](https://img.shields.io/badge/Backend-Django%205.x%20%7C%20DRF-092e20.svg)](geoshield/)
-[![Platform](https://img.shields.io/badge/Platform-OpenStreetMap%20%7C%20ESP32-emerald.svg)](firmware/)
-[![Status](https://img.shields.io/badge/Early%20Warning-System%20Ready-red.svg)](index.html)
-
-**GeoShield EWS** adalah platform open-source modern berbasis **Python Django Full-Stack** dan **OpenStreetMap / Google Maps GIS** untuk sistem peringatan dini (*Early Warning System*) dan monitoring real-time bencana alam: **Gempa Bumi / Seismik**, **Banjir (Level Air)**, **Curah Hujan**, dan **Kualitas Air (TDS)**.
-
-Dilengkapi dengan backend database relasional SQLite/PostgreSQL, REST API endpoint untuk mikrokontroler **ESP32 / ESP32-C3**, antarmuka **Django Admin Panel**, **Seismograf Canvas Digital**, **Grafik Telemetri Multi-Sensor Chart.js**, serta firmware **Bluetooth HC-06 Interactive WiFi Provisioning**.
+[![Platform](https://img.shields.io/badge/GIS-Google%20Maps%20%7C%20Leaflet-blue.svg)](static/)
+[![Hardware](https://img.shields.io/badge/Hardware-ESP32%20%7C%20ESP32--C3-emerald.svg)](firmware/)
+[![Status](https://img.shields.io/badge/Status-Online%20%7C%20Production%20Ready-success.svg)](https://lopez-holes-permits-fancy.trycloudflare.com)
 
 ---
 
-## 🌟 Fitur Utama
+## 🌐 LINK AKSES WEB PUBLIK (SIAP PAKAI / LIVE RESMI)
 
-- 🐍 **Full-Stack Django Backend & REST API**:
-  - Endpoint `POST /api/telemetry/`: Menerima data sensor dari ESP32 dan otomatis menyimpan ke database.
-  - Endpoint `GET /api/telemetry/latest/`: Menyediakan data telemetri realtime untuk dashboard.
-  - Endpoint `GET /api/telemetry/export/`: Download riwayat data sensor format `.csv`.
-  - **Django Admin (`/admin`)**: Manajemen stasiun posko sensor, log bencana, dan hak akses user.
-- 📱 **ESP32-C3 / ESP32 Bluetooth HC-06 WiFi Manager**:
-  - Menu interaktif via Bluetooth Serial (Aplikasi HP) untuk input SSID dan Password WiFi seperti form login.
-  - Kredensial WiFi otomatis tersimpan permanen di memori Flash NVS ESP32.
-- 🗺️ **Peta OpenStreetMap & GIS Layer**:
-  - OpenStreetMap Standard resmi, Dark GIS, Citra Satelit Esri, dan Google Maps API.
-  - Pencarian lokasi (*Geocoding*) dan *Reverse-Geocoding* otomatis saat marker stasiun digeser.
-  - Sinkronisasi koordinat otomatis saat ESP32 pertama kali terhubung.
-- 📈 **Grafik Telemetri Multi-Sensor (*Chart.js*)**:
-  - Grafik 1: Tren getaran seismik (PGA $g$ dan percepatan Gal $cm/s^2$).
-  - Grafik 2: Kurva kenaikan muka air banjir ($cm$) dan curah hujan ($mm/jam$).
-  - Grafik 3: Fluktuasi kekeruhan & partikel terlarut air TDS ($PPM$).
-  - Mode tampilan: Peta GIS, Grafik Lengkap, atau Tampilan Split.
-- 🚨 **Early Warning System (EWS)**:
-  - Sirine Audio sintesis Web Audio API (tanpa file mp3 eksternal).
-  - Pengumuman Suara Peringatan Bahasa Indonesia (Web Speech API).
+| Layanan | Link Akses | Keterangan |
+|---|---|---|
+| **🌍 Web Publik Online (HTTPS)** | **[https://lopez-holes-permits-fancy.trycloudflare.com](https://lopez-holes-permits-fancy.trycloudflare.com)** | Langsung aktif & bisa dibuka dosen / publik |
+| **🚀 1-Click Cloud Hosting (Render)** | **[Deploy to Render](https://render.com/deploy?repo=https://github.com/zanxjav/pendeteksi-gempa-ews)** | Otomatis deploy 24/7 cloud dari GitHub |
+| **📱 1-Click Download APK Android** | **[Generate APK via PWABuilder](https://www.pwabuilder.com/reportcard?site=https://lopez-holes-permits-fancy.trycloudflare.com)** | Paket installer `.apk` siap kirim ke dosen |
+| **📡 Endpoint REST API ESP32** | **`https://lopez-holes-permits-fancy.trycloudflare.com/api/telemetry/`** | Target pengiriman data sensor mikrokontroler |
+| **🔑 Admin Panel Django** | **[https://lopez-holes-permits-fancy.trycloudflare.com/admin/](https://lopez-holes-permits-fancy.trycloudflare.com/admin/)** | Kelola stasiun & log data (user: `admin`, pass: `admin123`) |
 
 ---
 
-## 🚀 Panduan Menjalankan Server Django
+## 🌟 Fitur Utama Sistem
 
-### 1. Install Dependensi Python
+1. **🐍 Backend Python Django 5.x & REST API**:
+   - Endpoint `POST /api/telemetry/`: Menerima data payload JSON dari mikrokontroler ESP32-C3.
+   - Endpoint `GET /api/telemetry/`: Menyediakan data telemetri seismik & kebencanaan real-time.
+   - Middleware **WhiteNoise** & **Gunicorn** untuk performa hosting cloud produksi tinggi.
+2. **🗺️ Google Maps Satellite Command Center**:
+   - Citra satelit asli Google Maps Hybrid (`lyrs=y`), Google Roads (`lyrs=m`), dan Google Terrain (`lyrs=p`).
+   - **Lingkaran Bahaya Gempa 25 KM**: Terkoneksi dinamis ke data akselerasi getaran **MPU-6050** ESP32 dengan badge puncak (*apex tag*) `25 KM`.
+   - **Rute Jalan Evakuasi Riil (OSRM)**: Menghitung jarak jalan raya riil dan estimasi waktu berkendara menuju posko aman (GOR ITERA, RSUD Airan Raya, dll).
+   - **Link Navigasi Google Maps**: Buka rute turn-by-turn langsung di aplikasi Google Maps HP.
+3. **📱 Progressive Web App (PWA) & APK Ready**:
+   - Ikon resolusi tinggi 192px dan 512px dengan manifest standalone.
+   - Dapat diinstal langsung dari Google Chrome Android (*"Tambahkan ke Layar Utama"*) atau diekspor ke `.apk`.
+4. **📡 Firmware ESP32-C3 / ESP32 Master**:
+   - Provisioning WiFi via Bluetooth HC-06 interaktif (perintah `set:SSID,PASS` dan `server:URL`).
+   - Multi-Sensor: MPU-6050 (Gempa), HC-SR04 (Banjir), FC-37 (Hujan), TDS Meter (Kualitas Air), Buzzer EWS.
+
+---
+
+## 🚀 Menjalankan Secara Lokal (Opsional)
+
 ```bash
+# 1. Install Dependensi
 pip install -r requirements.txt
-```
 
-### 2. Jalankan Migrasi Database
-```bash
+# 2. Migrasi Database & Buat Admin
 python manage.py migrate
-```
-
-### 3. Buat Akun Admin & Stasiun Default
-```bash
 python create_admin.py
+
+# 3. Jalankan Server
+python manage.py runserver 0.0.0.0:8000
 ```
-*Username default*: `admin`  
-*Password default*: `admin123`
-
-### 4. Jalankan Server Django
-```bash
-python manage.py runserver
-```
-Buka browser pada alamat:
-- **Web Dashboard**: `http://127.0.0.1:8000/`
-- **Django Admin Panel**: `http://127.0.0.1:8000/admin/`
-
----
-
-## ⚡ Firmware Mikrokontroler ESP32
-
-Tersedia 2 program firmware Arduino siap pakai di folder `firmware/`:
-
-1. **[firmware/esp32_c3_hc06_wifi_manager.ino](firmware/esp32_c3_hc06_wifi_manager.ino)**:
-   - Program setup Bluetooth HC-06 untuk menghubungkan ESP32 ke WiFi melalui menu login di HP.
-   - Pin: **RX ESP32 = GPIO 4**, **TX ESP32 = GPIO 5**, Baudrate = 9600.
-   - Ketik `masukan wifi` atau `menu` di Bluetooth Terminal HP untuk membuka form login.
-
-2. **[firmware/esp32_disaster_station.ino](firmware/esp32_disaster_station.ino)**:
-   - Program utama membaca sensor MPU-6050, Ultrasonic Banjir HC-SR04, Sensor Hujan, dan TDS Meter lalu mengirim data JSON via HTTP POST ke endpoint Django `http://IP_SERVER:8000/api/telemetry/`.
 
 ---
 
