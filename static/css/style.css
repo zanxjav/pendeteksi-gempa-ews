@@ -651,6 +651,40 @@ body.gis-command-body {
     border-color: #38BDF8;
 }
 
+.btn-search-exec {
+    position: absolute;
+    right: 4px;
+    width: 28px;
+    height: 26px;
+    background: #0284C7;
+    border: none;
+    border-radius: 4px;
+    color: #FFFFFF;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.btn-search-exec:hover {
+    background: #0369A1;
+}
+
+.mb-2 { margin-bottom: 8px; }
+
+.leaflet-control-scale-line {
+    background: rgba(15, 23, 42, 0.85) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    border-top: none !important;
+    color: #FFFFFF !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    padding: 2px 6px !important;
+    backdrop-filter: blur(4px) !important;
+}
+
 .route-tools {
     display: flex;
     align-items: center;

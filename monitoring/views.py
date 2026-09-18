@@ -17,10 +17,10 @@ def dashboard_view(request):
     station, created = SensorStation.objects.get_or_create(
         station_id="ST-01-ESP32",
         defaults={
-            "name": "Stasiun EWS ITERA - ESP32 C3",
-            "latitude": -5.4267,
-            "longitude": 105.3179,
-            "description": "Stasiun Pemantau Gempa & EWS ITERA Lampung"
+            "name": "Pendeteksi Gempa EWS ITERA - ESP32 C3",
+            "latitude": -5.35824,
+            "longitude": 105.31465,
+            "description": "Sistem Peringatan Dini Gempa Bumi & Multi-Bencana ITERA Lampung"
         }
     )
 

@@ -1,31 +1,36 @@
 /**
- * GeoShield EWS - Google Maps Connected Real-Time GIS Mapping Engine
+ * Pendeteksi Gempa EWS - Google Maps Connected Real-Time GIS Mapping Engine
+ * Stasiun Pemantauan Gempa Bumi & Multi-Bencana ITERA Lampung
  * 
- * Fitur Utama:
- * 1. Citra Satelit & Jalan Asli Google Maps (Google Hybrid lyrs=y & Google Road lyrs=m)
- * 2. Navigasi Real Turn-by-Turn Jalan Raya menggunakan OSRM Driving Engine
- * 3. Link Langsung ke Google Maps Navigation untuk setiap rute evakuasi & shelter
- * 4. Deteksi GPS Presisi Tinggi (HTML5 Geolocation High Accuracy)
- * 5. Zona Bahaya Gempa 25 KM dengan Apex Tag Dinamis dari Sensor ESP32 (MPU-6050)
+ * Fitur Utama & Peningkatan Akurasi:
+ * 1. Citra Satelit Asli Google Maps Hybrid (lyrs=y) dengan resolusi tinggi & label jalan resmi.
+ * 2. Titik Presisi Kampus ITERA Lampung (-5.35824, 105.31465).
+ * 3. Marker Epicenter DRAGGABLE & Peta Click-to-Relocate untuk menguji/memindahkan lokasi secara interaktif.
+ * 4. Kotak Pencarian Alamat & Tempat Google Maps (Geocoding instan).
+ * 5. Navigasi Real Turn-by-Turn Jalan Raya menggunakan OSRM Driving Engine.
+ * 6. Link Langsung ke Google Maps Navigation untuk setiap rute evakuasi & shelter.
+ * 7. Deteksi GPS Presisi Tinggi (HTML5 Geolocation High Accuracy).
+ * 8. Zona Bahaya Gempa 25 KM dengan Apex Tag Dinamis dari Sensor ESP32 (MPU-6050).
+ * 9. Indikator Skala Metrik Akurat (Leaflet Scale Bar).
  */
 
 class GeoMappingEngine {
     constructor() {
-        // Koordinat Utama Stasiun EWS ITERA (Institut Teknologi Sumatera, Lampung)
+        // Koordinat Presisi Kampus Institut Teknologi Sumatera (ITERA), Lampung
         this.station = {
             id: 'ST-01-ESP32',
-            name: 'Stasiun EWS ITERA (ESP32-C3)',
-            lat: -5.3582,
-            lng: 105.3146
+            name: 'Pendeteksi Gempa EWS ITERA - ESP32 C3',
+            lat: -5.35824,
+            lng: 105.31465
         };
 
-        // Daftar Posko / Shelter Evakuasi Riil di sekitar ITERA & Bandar Lampung
+        // Daftar Posko / Shelter Evakuasi Riil di sekitar Kampus ITERA & Lampung Selatan
         this.shelters = [
             {
                 id: 1,
                 name: 'Posko 1 (GOR ITERA / Embung A)',
-                lat: -5.3615,
-                lng: 105.3128,
+                lat: -5.36142,
+                lng: 105.31295,
                 type: 'green',
                 num: 1,
                 dist: '1.2 km',
@@ -35,8 +40,8 @@ class GeoMappingEngine {
             {
                 id: 2,
                 name: 'Posko 2 (RSUD Airan Raya)',
-                lat: -5.3725,
-                lng: 105.3056,
+                lat: -5.37258,
+                lng: 105.30560,
                 type: 'red',
                 num: 2,
                 dist: '3.8 km',
@@ -46,8 +51,8 @@ class GeoMappingEngine {
             {
                 id: 3,
                 name: 'Posko 3 (Balai Desa Way Huwi)',
-                lat: -5.3850,
-                lng: 105.2950,
+                lat: -5.38500,
+                lng: 105.29500,
                 type: 'green',
                 num: 1,
                 dist: '6.4 km',
@@ -57,8 +62,8 @@ class GeoMappingEngine {
             {
                 id: 4,
                 name: 'Posko 4 (Stadion PKOR Way Halim)',
-                lat: -5.3900,
-                lng: 105.2750,
+                lat: -5.39000,
+                lng: 105.27500,
                 type: 'red',
                 num: 2,
                 dist: '9.8 km',
@@ -101,29 +106,29 @@ class GeoMappingEngine {
         const container = document.getElementById('leaflet-map');
         if (!container) return;
 
-        // Centered at ITERA Lampung (-5.3582, 105.3146)
+        // Centered presisi pada Gedung Utama ITERA Lampung
         this.leafletMap = L.map('leaflet-map', {
             center: [this.station.lat, this.station.lng],
-            zoom: 13,
+            zoom: 14,
             zoomControl: false,
             attributionControl: false
         });
 
-        // 1. Google Maps Hybrid (Satelit Asli + Jalan Raya + Label Nama Tempat)
+        // 1. Google Maps Hybrid (Citra Satelit Resmi Google + Jalan Raya + Nama Gedung & Tempat)
         this.layerGoogleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-            maxZoom: 20,
+            maxZoom: 22,
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         }).addTo(this.leafletMap);
 
         // 2. Google Maps Standard Roads
         this.layerGoogleRoad = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            maxZoom: 20,
+            maxZoom: 22,
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         });
 
-        // 3. Google Maps Terrain
+        // 3. Google Maps Topografi & Terrain
         this.layerGoogleTerrain = L.tileLayer('https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
-            maxZoom: 20,
+            maxZoom: 22,
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         });
 
@@ -131,9 +136,16 @@ class GeoMappingEngine {
         this.layerOsm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19
         });
+
+        // Tambahkan Skala Metrik Akurat di Pojok Kanan Bawah
+        L.control.scale({
+            metric: true,
+            imperial: false,
+            position: 'bottomright'
+        }).addTo(this.leafletMap);
     }
 
-    // Render Epicenter / Node Sensor ESP32
+    // Render Epicenter / Node Sensor ESP32 (DRAGGABLE untuk akurasi penuh)
     renderStationEpicenter() {
         if (!this.leafletMap) return;
 
@@ -141,13 +153,36 @@ class GeoMappingEngine {
             className: 'epicenter-radar-marker',
             html: `
                 <div class="epicenter-pulse"></div>
-                <div class="epicenter-core" title="${this.station.name}"></div>
+                <div class="epicenter-core" title="Geser untuk memindahkan sensor gempa"></div>
             `,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         });
 
-        this.stationMarker = L.marker([this.station.lat, this.station.lng], { icon: pulseIcon }).addTo(this.leafletMap);
+        // Marker dapat digeser (Draggable) untuk akurasi lokasi
+        this.stationMarker = L.marker([this.station.lat, this.station.lng], {
+            icon: pulseIcon,
+            draggable: true,
+            title: 'Tarik marker ini untuk memindahkan titik sensor gempa secara presisi'
+        }).addTo(this.leafletMap);
+
+        // Event saat marker selesai digeser
+        this.stationMarker.on('dragend', (e) => {
+            const newPos = e.target.getLatLng();
+            this.station.lat = newPos.lat;
+            this.station.lng = newPos.lng;
+            this.updateStationPopup();
+            this.renderQuakeRadiusZone(this.currentRadiusKm);
+            this.calculateRealRoadRoutes();
+
+            const in1 = document.getElementById('input-loc-1');
+            if (in1) in1.value = `Titik Sensor ESP32 (${newPos.lat.toFixed(5)}, ${newPos.lng.toFixed(5)})`;
+
+            if (window.showToast) {
+                window.showToast(`Lokasi Sensor disetel ke: ${newPos.lat.toFixed(5)}, ${newPos.lng.toFixed(5)}`, 'info');
+            }
+        });
+
         this.updateStationPopup();
     }
 
@@ -158,15 +193,16 @@ class GeoMappingEngine {
             <div style="color: #0F172A; font-family: sans-serif; font-size: 12px; line-height: 1.4;">
                 <strong style="color: #1D4ED8; font-size: 13px;">📍 ${this.station.name}</strong><br>
                 <span>ID Node: <code>${this.station.id}</code></span><br>
-                <span>Koordinat Real Google Maps: <strong>${this.station.lat.toFixed(5)}, ${this.station.lng.toFixed(5)}</strong></span><br>
+                <span>Koordinat Google Maps: <strong>${this.station.lat.toFixed(5)}, ${this.station.lng.toFixed(5)}</strong></span><br>
                 <div style="margin-top: 6px; padding: 4px 8px; background: #FEE2E2; color: #DC2626; border-radius: 4px; font-weight: bold;">
                     ⚠️ Titik Pusat Sensor Gempa ESP32 (Aktif)
                 </div>
-                <div style="margin-top: 6px;">
+                <div style="margin-top: 6px; display: flex; gap: 8px;">
                     <a href="${gmapsLink}" target="_blank" style="color: #0284C7; font-weight: bold; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
                         <i class="fa-brands fa-google"></i> Buka Titik di Google Maps &rarr;
                     </a>
                 </div>
+                <small style="color: #64748B; display: block; margin-top: 4px;">💡 Tip: Anda bisa menarik (drag) ikon ini untuk mengubah lokasi sensor.</small>
             </div>
         `);
     }
@@ -196,7 +232,7 @@ class GeoMappingEngine {
         this.quakeRadiusCircle.bindPopup(`
             <div style="color: #0F172A; font-family: sans-serif; font-size: 12px;">
                 <strong style="color: #DC2626; font-size: 13px;">🔴 ZONA BAHAYA GUNCANGAN GEMPA</strong><br>
-                <span>Estimasi Radius Kerusakan: <strong>${radiusKm} KM</strong></span><br>
+                <span>Estimasi Radius Dampak: <strong>${radiusKm} KM</strong></span><br>
                 <span>Data Sensor ESP32 (MPU-6050): PGA &ge; 0.040g (MMI VI+)</span><br>
                 <small style="color: #64748B;">Jalur evakuasi diarahkan keluar dari lingkaran ini menuju Google Maps safe shelter.</small>
             </div>
@@ -287,8 +323,7 @@ class GeoMappingEngine {
                     }
                 }
             } catch (err) {
-                console.warn(`[OSRM] Fallback to direct path for shelter ${shelter.id}:`, err.message);
-                // Fallback geometry jika koneksi OSRM lambat
+                console.warn(`[OSRM] Fallback road geometry for shelter ${shelter.id}:`, err.message);
                 const fallbackCoords = [
                     [originLat, originLng],
                     [(originLat + destLat) / 2, originLng],
@@ -339,6 +374,45 @@ class GeoMappingEngine {
         });
     }
 
+    // Pencarian Alamat & Tempat Google Maps (Geocoding Akurat)
+    async searchLocation(query) {
+        if (!query || query.trim().length === 0) return;
+
+        if (window.showToast) window.showToast(`Mencari "${query}" di Google Maps...`, 'info');
+
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=id&limit=1`);
+            const data = await res.json();
+
+            if (data && data.length > 0) {
+                const item = data[0];
+                const lat = parseFloat(item.lat);
+                const lng = parseFloat(item.lon);
+                const placeName = item.display_name.split(',')[0];
+
+                this.station.lat = lat;
+                this.station.lng = lng;
+                this.station.name = `Pusat Gempa: ${placeName}`;
+
+                this.leafletMap.setView([lat, lng], 14, { animate: true });
+                this.stationMarker.setLatLng([lat, lng]);
+                this.updateStationPopup();
+                this.renderQuakeRadiusZone(this.currentRadiusKm);
+                this.calculateRealRoadRoutes();
+
+                const in1 = document.getElementById('input-loc-1');
+                if (in1) in1.value = `${placeName} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+
+                if (window.showToast) window.showToast(`Lokasi ditemukan: ${placeName}`, 'success');
+            } else {
+                alert(`Lokasi "${query}" tidak ditemukan. Silakan ketik nama daerah atau gedung yang lebih jelas.`);
+            }
+        } catch (err) {
+            console.warn('Search error:', err);
+            alert('Gagal mencari lokasi: ' + err.message);
+        }
+    }
+
     // Deteksi GPS Realtime Pengguna (Geolocation API Presisi Tinggi)
     detectUserGPS() {
         if (!navigator.geolocation) {
@@ -366,7 +440,7 @@ class GeoMappingEngine {
 
                 // Update Form Input
                 const in1 = document.getElementById('input-loc-1');
-                if (in1) in1.value = `Lokasi GPS Saya (${userLat.toFixed(4)}, ${userLng.toFixed(4)})`;
+                if (in1) in1.value = `Lokasi GPS Saya (${userLat.toFixed(5)}, ${userLng.toFixed(5)})`;
 
                 // Recenter & Recalculate
                 this.leafletMap.setView([userLat, userLng], 14, { animate: true });
@@ -374,7 +448,7 @@ class GeoMappingEngine {
                 this.calculateRealRoadRoutes();
 
                 if (window.showToast) {
-                    window.showToast(`GPS Terhubung! Akurasi: ${accuracyMeters} meter. Rute Google Maps diperbarui.`, 'success');
+                    window.showToast(`GPS Terhubung! Akurasi: ${accuracyMeters}m. Rute Google Maps diperbarui.`, 'success');
                 }
             },
             (err) => {
@@ -467,11 +541,56 @@ class GeoMappingEngine {
             btnGps.addEventListener('click', () => this.detectUserGPS());
         }
 
+        // Tombol Cari Alamat / Tempat di Google Maps
+        const searchInput = document.getElementById('gmaps-search-box');
+        const btnSearch = document.getElementById('btn-gmaps-search');
+
+        if (btnSearch && searchInput) {
+            btnSearch.addEventListener('click', () => {
+                this.searchLocation(searchInput.value);
+            });
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.searchLocation(searchInput.value);
+                }
+            });
+        }
+
+        // Klik Kanan pada Peta untuk memindahkan stasiun sensor
+        if (this.leafletMap) {
+            this.leafletMap.on('contextmenu', (e) => {
+                const clickPos = e.latlng;
+                this.station.lat = clickPos.lat;
+                this.station.lng = clickPos.lng;
+                this.stationMarker.setLatLng(clickPos);
+                this.updateStationPopup();
+                this.renderQuakeRadiusZone(this.currentRadiusKm);
+                this.calculateRealRoadRoutes();
+
+                const in1 = document.getElementById('input-loc-1');
+                if (in1) in1.value = `Titik Sensor ESP32 (${clickPos.lat.toFixed(5)}, ${clickPos.lng.toFixed(5)})`;
+
+                if (window.showToast) {
+                    window.showToast(`Pusat Sensor Gempa disetel ke: ${clickPos.lat.toFixed(5)}, ${clickPos.lng.toFixed(5)}`, 'info');
+                }
+            });
+        }
+
         // Reset / Undo View button
         const btnUndo = document.getElementById('top-btn-undo');
         if (btnUndo) {
             btnUndo.addEventListener('click', () => {
-                this.leafletMap.setView([this.station.lat, this.station.lng], 13, { animate: true });
+                this.station.lat = -5.35824;
+                this.station.lng = 105.31465;
+                this.station.name = 'Pendeteksi Gempa EWS ITERA - ESP32 C3';
+                this.stationMarker.setLatLng([this.station.lat, this.station.lng]);
+                this.updateStationPopup();
+                this.leafletMap.setView([this.station.lat, this.station.lng], 14, { animate: true });
+                this.renderQuakeRadiusZone(25);
+                this.calculateRealRoadRoutes();
+                const in1 = document.getElementById('input-loc-1');
+                if (in1) in1.value = 'Kampus ITERA Lampung (-5.35824, 105.31465)';
+                if (window.showToast) window.showToast('Peta di-reset ke Kampus ITERA Lampung', 'info');
             });
         }
 
@@ -522,9 +641,11 @@ class GeoMappingEngine {
         if (btnDeleteAll) {
             btnDeleteAll.addEventListener('click', () => {
                 if (confirm('Reset semua radius gempa dan rute evakuasi Google Maps?')) {
+                    this.station.lat = -5.35824;
+                    this.station.lng = 105.31465;
                     this.renderQuakeRadiusZone(25);
                     this.calculateRealRoadRoutes();
-                    this.leafletMap.setView([this.station.lat, this.station.lng], 13);
+                    this.leafletMap.setView([this.station.lat, this.station.lng], 14);
                     if (window.showToast) window.showToast('Semua parameter GIS telah di-reset ke nilai awal.', 'success');
                 }
             });

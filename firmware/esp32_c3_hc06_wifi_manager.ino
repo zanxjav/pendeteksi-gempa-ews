@@ -101,9 +101,9 @@ String savedSSID = "";
 String savedPass = "";
 String savedServerUrl = "http://192.168.1.100:8000/api/telemetry/";
 String savedStationId = "ST-01-ESP32";
-String savedStationName = "Stasiun EWS ITERA - ESP32 C3";
-float savedLat = -5.4267;
-float savedLng = 105.3179;
+String savedStationName = "Pendeteksi Gempa EWS ITERA - ESP32 C3";
+float savedLat = -5.35824;
+float savedLng = 105.31465;
 
 String tempSSID = "";
 String tempPass = "";

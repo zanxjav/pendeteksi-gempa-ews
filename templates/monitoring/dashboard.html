@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoShield EWS - Earthquake Impact & Seismic Evacuation Command Center</title>
-    <meta name="description" content="Sistem Peringatan Dini Gempa Bumi & Telemetri Multi-Sensor ESP32 Berbasis Leaflet GIS Satellite & OpenStreetMap.">
+    <title>Pendeteksi Gempa EWS - Sistem Peringatan Dini Gempa Bumi & Multi-Bencana ITERA</title>
+    <meta name="description" content="Pendeteksi Gempa EWS - Sistem Peringatan Dini Gempa Bumi & Telemetri Sensor ESP32 Terintegrasi Google Maps & OpenStreetMap ITERA Lampung.">
     
     <!-- PWA Meta & Manifest -->
     <link rel="manifest" href="{% static 'manifest.json' %}">
@@ -39,11 +39,11 @@
     <header class="gis-top-navbar">
         <div class="nav-left-group">
             <!-- App Icon / Home -->
-            <button class="nav-btn btn-home" title="GeoShield EWS Home">
+            <button class="nav-btn btn-home" title="Pendeteksi Gempa EWS Home">
                 <i class="fa-solid fa-house"></i>
             </button>
             <!-- Map Mode Active (Blue) -->
-            <button class="nav-btn btn-map-toggle active" id="top-btn-map" title="Tampilan Peta Satelit GIS">
+            <button class="nav-btn btn-map-toggle active" id="top-btn-map" title="Tampilan Peta Satelit Google Maps">
                 <i class="fa-solid fa-map"></i>
             </button>
             <!-- Grid / Multi-Sensor Toggle -->
@@ -51,16 +51,16 @@
                 <i class="fa-solid fa-table-cells-large"></i>
             </button>
             <!-- Undo / Reset View -->
-            <button class="nav-btn" id="top-btn-undo" title="Reset Pandangan Peta">
+            <button class="nav-btn" id="top-btn-undo" title="Reset Pandangan Peta ke ITERA">
                 <i class="fa-solid fa-rotate-left"></i>
             </button>
         </div>
 
         <!-- Center Command Title -->
         <div class="nav-center-title">
-            <span class="org-name">GeoShield EWS</span>
+            <span class="org-name">Pendeteksi Gempa EWS</span>
             <span class="title-sep">/</span>
-            <h1 class="zone-title" id="display-zone-title">Earthquake Impact & Seismic Zone — Stasiun ITERA (ESP32-C3)</h1>
+            <h1 class="zone-title" id="display-zone-title">Sistem Peringatan Dini Gempa Bumi & Bencana — Stasiun ITERA (ESP32-C3)</h1>
             <span id="badge-esp-live" class="badge-live-pulse"><i class="fa-solid fa-circle"></i> LIVE NODE</span>
         </div>
 
@@ -168,7 +168,7 @@
                         <div class="badge-num badge-green">1</div>
                         <div class="input-symbol">=</div>
                         <div class="loc-field-wrap">
-                            <input type="text" class="loc-input" id="input-loc-1" value="Stasiun EWS ITERA (Pusat Gempa ESP32)" readonly>
+                            <input type="text" class="loc-input" id="input-loc-1" value="Kampus ITERA Lampung (-5.35824, 105.31465)" readonly>
                             <span class="loc-tag-pga" id="badge-loc-pga">PGA: 0.045g</span>
                         </div>
                     </div>
@@ -178,7 +178,16 @@
                         <div class="badge-num badge-red">2</div>
                         <div class="input-symbol">=</div>
                         <div class="loc-field-wrap">
-                            <input type="text" class="loc-input" id="input-loc-2" value="Posko Evakuasi GOR ITERA (Zona Aman 🟢)">
+                            <input type="text" class="loc-input" id="input-loc-2" value="Posko 1 (GOR ITERA / Embung A) 🟢">
+                        </div>
+                    </div>
+
+                    <!-- Search Real Google Maps Address -->
+                    <div class="loc-search-row mt-2 mb-2">
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="gmaps-search-box" placeholder="Cari alamat / posko di Google Maps..." class="loc-input" style="padding-right: 36px;">
+                            <button id="btn-gmaps-search" class="btn-search-exec" title="Cari di Google Maps"><i class="fa-solid fa-arrow-right"></i></button>
                         </div>
                     </div>
 
@@ -195,6 +204,7 @@
                         </button>
                     </div>
                 </div>
+
 
                 <!-- Section: Route Directions Color -->
                 <div class="panel-section">
