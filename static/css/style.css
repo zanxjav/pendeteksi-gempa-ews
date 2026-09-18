@@ -1429,3 +1429,157 @@ body.gis-command-body {
 .mt-1 { margin-top: 4px; }
 .mt-2 { margin-top: 8px; }
 .mt-3 { margin-top: 12px; }
+
+/* Floating Panel Collapsed State */
+.gis-floating-panel {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.gis-floating-panel.collapsed {
+    transform: translateX(calc(-100% - 30px));
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Sensor Highlight Animation (Triggered by Rail Buttons) */
+@keyframes pulseHighlight {
+    0% {
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+        border-color: #38BDF8;
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.9);
+        border-color: #06B6D4;
+        transform: scale(1.02);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+        border-color: rgba(255, 255, 255, 0.12);
+        transform: scale(1);
+    }
+}
+
+.hud-card.sensor-highlight {
+    animation: pulseHighlight 1.5s ease-in-out 2;
+    border-color: #38BDF8 !important;
+}
+
+/* Modal Form Styles */
+.settings-form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.status-diagnostic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.diag-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: #1E293B;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+}
+
+.diag-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.diag-left strong {
+    font-size: 13px;
+    color: var(--text-white);
+}
+
+.diag-left p {
+    font-size: 11px;
+    margin: 0;
+}
+
+.diag-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.diag-dot.green {
+    background: #10B981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.mode-travel-btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+
+/* Print Stylesheet for Disaster Report Generation */
+@media print {
+    .gis-top-navbar,
+    .gis-left-rail,
+    .gis-bottom-dock,
+    .prov-modal-overlay,
+    .map-ctrl-zoom-stack,
+    .btn-search-exec,
+    .loc-actions-group,
+    .route-main-actions,
+    .nav-btn {
+        display: none !important;
+    }
+
+    body.gis-command-body {
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+
+    .gis-main-viewport {
+        position: static !important;
+        height: auto !important;
+        display: block !important;
+    }
+
+    .gis-map-container {
+        width: 100% !important;
+        height: 500px !important;
+        position: relative !important;
+        page-break-after: always;
+    }
+
+    .gis-telemetry-hud {
+        position: static !important;
+        width: 100% !important;
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        border: 1px solid #CCC !important;
+        box-shadow: none !important;
+        margin-top: 20px;
+    }
+
+    .hud-card {
+        background: #F8FAFC !important;
+        color: #000000 !important;
+        border: 1px solid #DDD !important;
+    }
+
+    .text-white {
+        color: #000000 !important;
+    }
+}
+

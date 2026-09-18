@@ -39,7 +39,7 @@
     <header class="gis-top-navbar">
         <div class="nav-left-group">
             <!-- App Icon / Home -->
-            <button class="nav-btn btn-home" title="Pendeteksi Gempa EWS Home">
+            <button class="nav-btn btn-home" id="top-btn-home" title="Pendeteksi Gempa EWS Home (Reset Pandangan Stasiun ITERA)">
                 <i class="fa-solid fa-house"></i>
             </button>
             <!-- Map Mode Active (Blue) -->
@@ -612,6 +612,271 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================================== -->
+    <!-- 4. MODAL: PENGATURAN AMBANG BATAS EWS (SETTINGS MODAL)                          -->
+    <!-- ============================================================================== -->
+    <div id="settings-modal" class="prov-modal-overlay hidden" aria-hidden="true">
+        <div class="prov-modal-dialog" style="max-width: 540px;">
+            <div class="prov-modal-header">
+                <div class="prov-header-title">
+                    <div class="prov-icon-glow" style="background: rgba(14, 165, 233, 0.2); color: #38BDF8;">
+                        <i class="fa-solid fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h2>Pengaturan Ambang Batas EWS</h2>
+                        <p>Kalibrasi batas bahaya sensor ESP32 & aktivasi sirine peringatan dini</p>
+                    </div>
+                </div>
+                <div class="prov-header-actions">
+                    <button class="btn-text-skip modal-close-btn" data-target="settings-modal" title="Tutup">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="prov-modal-body">
+                <div class="settings-form-grid">
+                    <div class="prov-form-group">
+                        <label for="cfg-quake-threshold"><i class="fa-solid fa-volcano text-danger"></i> Ambang Batas Gempa (PGA dalam g):</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-wave-square"></i>
+                            <input type="number" step="0.005" id="cfg-quake-threshold" value="0.040">
+                        </div>
+                        <small class="text-muted">Nilai &ge; 0.040g memicu alarm MMI VI+ dan sirine evakuasi.</small>
+                    </div>
+
+                    <div class="prov-form-group mt-2">
+                        <label for="cfg-flood-threshold"><i class="fa-solid fa-water text-cyan"></i> Batas Siaga Banjir HC-SR04 (cm):</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-ruler-vertical"></i>
+                            <input type="number" step="5" id="cfg-flood-threshold" value="150">
+                        </div>
+                        <small class="text-muted">Tinggi muka air &ge; 150 cm memicu status BAHAYA BANJIR.</small>
+                    </div>
+
+                    <div class="prov-form-group mt-2">
+                        <label for="cfg-rain-threshold"><i class="fa-solid fa-cloud-showers-heavy text-yellow"></i> Batas Hujan Lebat FC-37 (mm/jam):</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-droplet"></i>
+                            <input type="number" step="1" id="cfg-rain-threshold" value="20">
+                        </div>
+                    </div>
+
+                    <div class="prov-form-group mt-2">
+                        <label for="cfg-tds-threshold"><i class="fa-solid fa-flask text-green"></i> Batas Kekeruhan Air TDS (ppm):</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-vial"></i>
+                            <input type="number" step="10" id="cfg-tds-threshold" value="300">
+                        </div>
+                    </div>
+
+                    <div class="prov-form-group mt-2">
+                        <label for="cfg-siren-mode"><i class="fa-solid fa-bullhorn text-danger"></i> Mode Sirine Buzzer:</label>
+                        <select id="cfg-siren-mode" class="loc-input" style="background: #1E293B; color: #FFF;">
+                            <option value="auto">Otomatis (Aktif jika PGA &ge; Ambang Batas)</option>
+                            <option value="always_ask">Konfirmasi Sebelum Sirine Berbunyi</option>
+                            <option value="silent">Hanya Peringatan Visual Peta (Silent)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="prov-actions mt-3" style="display: flex; gap: 8px;">
+                    <button id="btn-save-settings" class="btn btn-primary btn-block">
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan & Terapkan Pengaturan
+                    </button>
+                    <button class="btn btn-outline-secondary modal-close-btn" data-target="settings-modal">
+                        Batal
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================================== -->
+    <!-- 5. MODAL: STATUS SISTEM & DIAGNOSTIK SERVER                                     -->
+    <!-- ============================================================================== -->
+    <div id="system-status-modal" class="prov-modal-overlay hidden" aria-hidden="true">
+        <div class="prov-modal-dialog" style="max-width: 520px;">
+            <div class="prov-modal-header">
+                <div class="prov-header-title">
+                    <div class="prov-icon-glow" style="background: rgba(16, 185, 129, 0.2); color: #10B981;">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <h2>Status & Kesehatan Sistem EWS</h2>
+                        <p>Diagnostik server Django, Cloudflare HTTPS Tunnel, dan Node ESP32</p>
+                    </div>
+                </div>
+                <div class="prov-header-actions">
+                    <button class="btn-text-skip modal-close-btn" data-target="system-status-modal" title="Tutup">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="prov-modal-body">
+                <div class="status-diagnostic-list">
+                    <div class="diag-item">
+                        <div class="diag-left">
+                            <span class="diag-dot green"></span>
+                            <div>
+                                <strong>Backend Django Framework</strong>
+                                <p class="text-muted">Python 3.11 & Django REST API</p>
+                            </div>
+                        </div>
+                        <span class="status-pill success" id="diag-django-status">Online (HTTP 200)</span>
+                    </div>
+
+                    <div class="diag-item mt-2">
+                        <div class="diag-left">
+                            <span class="diag-dot green"></span>
+                            <div>
+                                <strong>Cloudflare Public Tunnel (HTTPS)</strong>
+                                <p class="text-muted">SSL/TLS Terenkripsi Global</p>
+                            </div>
+                        </div>
+                        <span class="status-pill success">Aktif & Terlindungi</span>
+                    </div>
+
+                    <div class="diag-item mt-2">
+                        <div class="diag-left">
+                            <span class="diag-dot green"></span>
+                            <div>
+                                <strong>Node Sensor ESP32-C3 ITERA</strong>
+                                <p class="text-muted">Stasiun ST-01-ESP32 (MPU-6050, HC-SR04)</p>
+                            </div>
+                        </div>
+                        <span class="status-pill success" id="diag-esp-status">Telemetri Mengalir</span>
+                    </div>
+
+                    <div class="diag-item mt-2">
+                        <div class="diag-left">
+                            <span class="diag-dot green"></span>
+                            <div>
+                                <strong>Database SQLite EWS</strong>
+                                <p class="text-muted">Riwayat Gempa & Multi-Sensor</p>
+                            </div>
+                        </div>
+                        <span class="status-pill success" id="diag-db-status">Siap & Terindeks</span>
+                    </div>
+                </div>
+
+                <div class="prov-actions mt-3" style="display: flex; gap: 8px;">
+                    <button id="btn-run-diag-test" class="btn btn-primary btn-block">
+                        <i class="fa-solid fa-rotate"></i> Uji Ulang Latensi & Diagnostik
+                    </button>
+                    <button class="btn btn-outline-secondary modal-close-btn" data-target="system-status-modal">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================================== -->
+    <!-- 6. MODAL: PENGATURAN RUTE & EVAKUASI                                           -->
+    <!-- ============================================================================== -->
+    <div id="route-settings-modal" class="prov-modal-overlay hidden" aria-hidden="true">
+        <div class="prov-modal-dialog" style="max-width: 480px;">
+            <div class="prov-modal-header">
+                <div class="prov-header-title">
+                    <div class="prov-icon-glow" style="background: rgba(245, 158, 11, 0.2); color: #F59E0B;">
+                        <i class="fa-solid fa-route"></i>
+                    </div>
+                    <div>
+                        <h2>Pengaturan Jalur Evakuasi</h2>
+                        <p>Kustomisasi moda transportasi & preferensi rute keselamatan</p>
+                    </div>
+                </div>
+                <div class="prov-header-actions">
+                    <button class="btn-text-skip modal-close-btn" data-target="route-settings-modal" title="Tutup">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="prov-modal-body">
+                <div class="prov-form-group">
+                    <label><i class="fa-solid fa-person-running text-cyan"></i> Moda Evakuasi:</label>
+                    <div style="display: flex; gap: 8px; margin-top: 6px;">
+                        <button type="button" class="btn btn-primary mode-travel-btn active" data-mode="driving" id="btn-mode-driving">
+                            <i class="fa-solid fa-car"></i> Kendaraan / Mobil
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary mode-travel-btn" data-mode="walking" id="btn-mode-walking">
+                            <i class="fa-solid fa-person-walking"></i> Pejalan Kaki
+                        </button>
+                    </div>
+                </div>
+
+                <div class="prov-form-group mt-3">
+                    <label><i class="fa-solid fa-shield-halved text-yellow"></i> Preferensi Keamanan:</label>
+                    <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                            <input type="checkbox" id="chk-avoid-flood" checked> Hindari Jalan Berpotensi Banjir (HC-SR04)
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                            <input type="checkbox" id="chk-avoid-epicenter" checked> Prioritaskan Jalur Keluar dari Radius Bahaya Gempa
+                        </label>
+                    </div>
+                </div>
+
+                <div class="prov-actions mt-3">
+                    <button id="btn-apply-route-settings" class="btn btn-primary btn-block">
+                        <i class="fa-solid fa-check"></i> Terapkan Pengaturan Rute
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================================== -->
+    <!-- 7. MODAL: TAMBAH POSKO EVAKUASI BARU                                            -->
+    <!-- ============================================================================== -->
+    <div id="add-shelter-modal" class="prov-modal-overlay hidden" aria-hidden="true">
+        <div class="prov-modal-dialog" style="max-width: 480px;">
+            <div class="prov-modal-header">
+                <div class="prov-header-title">
+                    <div class="prov-icon-glow" style="background: rgba(16, 185, 129, 0.2); color: #10B981;">
+                        <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <div>
+                        <h2>Tambah Posko Evakuasi Baru</h2>
+                        <p>Tambahkan titik shelter kustom di peta atau klik lokasi langsung</p>
+                    </div>
+                </div>
+                <div class="prov-header-actions">
+                    <button class="btn-text-skip modal-close-btn" data-target="add-shelter-modal" title="Tutup">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="prov-modal-body">
+                <div class="prov-form-group">
+                    <label for="new-shelter-name">Nama Posko / Tempat:</label>
+                    <input type="text" id="new-shelter-name" class="loc-input" placeholder="Contoh: Posko Lapangan ITERA / GSG" value="Posko Tambahan ITERA">
+                </div>
+                <div class="prov-form-group mt-2" style="display: flex; gap: 8px;">
+                    <div style="flex: 1;">
+                        <label for="new-shelter-lat">Latitude:</label>
+                        <input type="number" step="0.00001" id="new-shelter-lat" class="loc-input" value="-5.36500">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="new-shelter-lng">Longitude:</label>
+                        <input type="number" step="0.00001" id="new-shelter-lng" class="loc-input" value="105.32000">
+                    </div>
+                </div>
+                <p class="text-muted mt-2" style="font-size: 11.5px;">
+                    💡 Anda juga bisa mengklik langsung tombol <strong>"Klik Peta untuk Memilih Titik"</strong> lalu klik di area peta mana pun.
+                </p>
+                <div class="prov-actions mt-3" style="display: flex; gap: 8px;">
+                    <button id="btn-pick-shelter-on-map" class="btn btn-outline-secondary" style="flex: 1;">
+                        <i class="fa-solid fa-crosshairs"></i> Klik di Peta
+                    </button>
+                    <button id="btn-submit-new-shelter" class="btn btn-primary" style="flex: 1;">
+                        <i class="fa-solid fa-plus"></i> Tambah Posko
+                    </button>
                 </div>
             </div>
         </div>

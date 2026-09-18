@@ -81,13 +81,8 @@ class GeoMappingEngine {
 
         this.currentRadiusKm = 25; // Default 25 KM matching reference photo '25MI'
         this.currentLayerMode = 'google-hybrid'; // 'google-hybrid', 'google-road', 'google-terrain', 'osm'
-        this.activeRouteColor = '#06B6D4';
-
-        // Layer Instances
-        this.layerGoogleHybrid = null;
-        this.layerGoogleRoad = null;
-        this.layerGoogleTerrain = null;
-        this.layerOsm = null;
+        this.travelMode = 'driving'; // 'driving' or 'walking'
+        this.isPickingShelterOnMap = false;
 
         this.init();
     }
@@ -99,6 +94,8 @@ class GeoMappingEngine {
         this.calculateRealRoadRoutes();
         this.renderShelterMarkers();
         this.bindEvents();
+        this.bindRouteCardClicks();
+        this.bindPillDeletionLayers();
     }
 
     // Inisialisasi Peta menggunakan Google Maps Hybrid Tiles
@@ -270,6 +267,8 @@ class GeoMappingEngine {
         this.routePolylines.forEach(p => this.leafletMap.removeLayer(p));
         this.routePolylines = [];
 
+        const modeProfile = (this.travelMode === 'walking') ? 'walking' : 'driving';
+
         // Rute untuk masing-masing shelter
         for (let i = 0; i < this.shelters.length; i++) {
             const shelter = this.shelters[i];
@@ -279,8 +278,8 @@ class GeoMappingEngine {
             const destLng = shelter.lng;
 
             try {
-                // Request OSRM Real Road Driving Geometry
-                const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+                // Request OSRM Real Road Driving/Walking Geometry
+                const url = `https://router.project-osrm.org/route/v1/${modeProfile}/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`;
                 const response = await fetch(url);
                 const data = await response.json();
 
@@ -292,20 +291,24 @@ class GeoMappingEngine {
 
                     // Gambar Polyline di Peta mengikuti jalan raya Google Maps
                     const polyline = L.polyline(coords, {
-                        color: shelter.color,
+                        color: shelter.color || '#06B6D4',
                         weight: 5,
                         opacity: 0.9,
                         lineCap: 'round',
                         lineJoin: 'round'
                     }).addTo(this.leafletMap);
 
-                    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${destLat},${destLng}&travelmode=driving`;
+                    polyline.shelterData = shelter;
+                    polyline.routeIndex = i;
+
+                    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${destLat},${destLng}&travelmode=${modeProfile}`;
 
                     polyline.bindPopup(`
                         <div style="font-family: sans-serif; font-size: 12px; color: #0F172A;">
                             <strong style="color: ${shelter.color}; font-size: 13px;">${shelter.name}</strong><br>
+                            <span>Moda: <strong>${this.travelMode === 'walking' ? '🚶 Pejalan Kaki' : '🚗 Kendaraan Bermotor'}</strong></span><br>
                             <span>Jarak Riil Jalan: <strong>${distanceKm} km</strong></span><br>
-                            <span>Waktu Tempuh Kendaraan: <strong>${durationMins} menit</strong></span><br>
+                            <span>Waktu Tempuh: <strong>${durationMins} menit</strong></span><br>
                             <div style="margin-top: 8px;">
                                 <a href="${gmapsUrl}" target="_blank" style="display: inline-block; background: #0284C7; color: #FFF; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-weight: bold;">
                                     <i class="fa-brands fa-google"></i> Navigasi Google Maps &rarr;
@@ -330,10 +333,12 @@ class GeoMappingEngine {
                     [destLat, destLng]
                 ];
                 const fallbackLine = L.polyline(fallbackCoords, {
-                    color: shelter.color,
+                    color: shelter.color || '#06B6D4',
                     weight: 4.5,
                     opacity: 0.85
                 }).addTo(this.leafletMap);
+                fallbackLine.shelterData = shelter;
+                fallbackLine.routeIndex = i;
                 this.routePolylines.push(fallbackLine);
             }
         }
@@ -346,11 +351,11 @@ class GeoMappingEngine {
         this.shelterMarkers.forEach(m => this.leafletMap.removeLayer(m));
         this.shelterMarkers = [];
 
-        this.shelters.forEach(s => {
+        this.shelters.forEach((s, idx) => {
             const badgeClass = (s.type === 'green') ? 'shelter-green' : 'shelter-red';
             const icon = L.divIcon({
                 className: 'shelter-badge-wrap',
-                html: `<div class="shelter-badge-marker ${badgeClass}">${s.num}</div>`,
+                html: `<div class="shelter-badge-marker ${badgeClass}">${s.num || (idx + 1)}</div>`,
                 iconSize: [26, 26],
                 iconAnchor: [13, 13]
             });
@@ -372,6 +377,172 @@ class GeoMappingEngine {
             `);
             this.shelterMarkers.push(marker);
         });
+    }
+
+    // Menambahkan Posko Evakuasi Baru (Kustom)
+    addNewShelter(name, lat, lng) {
+        const newId = this.shelters.length + 1;
+        const newShelter = {
+            id: newId,
+            name: name || `Posko ${newId} (Tambahan)`,
+            lat: parseFloat(lat),
+            lng: parseFloat(lng),
+            type: 'green',
+            num: newId,
+            dist: 'Kalkulasi...',
+            eta: 'Kalkulasi...',
+            color: '#10B981'
+        };
+
+        this.shelters.push(newShelter);
+        this.renderShelterMarkers();
+        this.calculateRealRoadRoutes();
+
+        // Update form input loc-2
+        const in2 = document.getElementById('input-loc-2');
+        if (in2) in2.value = `${newShelter.name} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+
+        // Focus map to include new shelter
+        this.leafletMap.setView([lat, lng], 14, { animate: true });
+
+        if (window.showToast) {
+            window.showToast(`Posko "${newShelter.name}" berhasil ditambahkan & rute OSRM terhubung! 📍`, 'success');
+        }
+    }
+
+    // Algoritma Optimasi Rute Evakuasi (Paling Aman, Menghindari Zona Bahaya & Paling Cepat)
+    optimizeRoute() {
+        if (!this.shelters || this.shelters.length === 0) return;
+
+        let bestShelter = null;
+        let bestDistanceMeters = Infinity;
+
+        // Hitung jarak garis lurus dari episenter ke setiap posko
+        this.shelters.forEach((shelter) => {
+            const dLat = (shelter.lat - this.station.lat) * 111.32;
+            const dLng = (shelter.lng - this.station.lng) * 111.32 * Math.cos(this.station.lat * Math.PI / 180);
+            const distKm = Math.sqrt(dLat * dLat + dLng * dLng);
+
+            // Cek apakah di luar radius bahaya
+            const isOutsideDanger = distKm >= (this.currentRadiusKm * 0.3); // prioritas luar zona episenter langsung
+
+            if (isOutsideDanger && distKm < bestDistanceMeters) {
+                bestDistanceMeters = distKm;
+                bestShelter = shelter;
+            }
+        });
+
+        if (!bestShelter) bestShelter = this.shelters[0];
+
+        // Highlight polyline rute terbaik
+        this.routePolylines.forEach((poly) => {
+            if (poly.shelterData && poly.shelterData.id === bestShelter.id) {
+                poly.setStyle({ color: '#10B981', weight: 8, opacity: 1 });
+                poly.openPopup();
+                this.leafletMap.fitBounds(poly.getBounds(), { padding: [80, 80] });
+            } else {
+                poly.setStyle({ opacity: 0.35, weight: 3 });
+            }
+        });
+
+        const in2 = document.getElementById('input-loc-2');
+        if (in2) in2.value = `⭐ TERBAIK: ${bestShelter.name}`;
+
+        if (window.showToast) {
+            window.showToast(`Rute Evakuasi Teraman: Menuju ${bestShelter.name} (${bestDistanceMeters.toFixed(1)} km) ✅`, 'success');
+        }
+    }
+
+    // Klik Route Card untuk fokus ke rute terkait
+    bindRouteCardClicks() {
+        [1, 2, 3].forEach((num) => {
+            const card = document.getElementById(`card-route-${num}`);
+            if (card) {
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.route-card-item').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+
+                    const poly = this.routePolylines[num - 1];
+                    if (poly) {
+                        this.routePolylines.forEach(p => p.setStyle({ opacity: 0.4, weight: 4 }));
+                        poly.setStyle({ opacity: 1, weight: 7 });
+                        this.leafletMap.fitBounds(poly.getBounds(), { padding: [60, 60] });
+                        poly.openPopup();
+                    }
+                });
+            }
+        });
+    }
+
+    // Hapus layer spesifik saat tombol hapus pill diklik
+    bindPillDeletionLayers() {
+        const pillQuake = document.querySelector('#pill-radius-quake .pill-del-btn');
+        if (pillQuake) {
+            pillQuake.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.quakeRadiusCircle) this.leafletMap.removeLayer(this.quakeRadiusCircle);
+                if (this.apexBadgeMarker) this.leafletMap.removeLayer(this.apexBadgeMarker);
+                if (window.showToast) window.showToast('Visualisasi Radius Gempa disembunyikan dari peta.', 'warn');
+            });
+        }
+
+        const pillR1 = document.querySelector('#pill-route-1 .pill-del-btn');
+        if (pillR1) {
+            pillR1.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.routePolylines[0]) this.leafletMap.removeLayer(this.routePolylines[0]);
+                if (window.showToast) window.showToast('Route #1 dihapus dari peta.', 'info');
+            });
+        }
+
+        const pillR2 = document.querySelector('#pill-route-2 .pill-del-btn');
+        if (pillR2) {
+            pillR2.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.routePolylines[1]) this.leafletMap.removeLayer(this.routePolylines[1]);
+                if (window.showToast) window.showToast('Route #2 dihapus dari peta.', 'info');
+            });
+        }
+
+        const pillR3 = document.querySelector('#pill-route-3 .pill-del-btn');
+        if (pillR3) {
+            pillR3.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.routePolylines[2]) this.leafletMap.removeLayer(this.routePolylines[2]);
+                if (window.showToast) window.showToast('Route #3 dihapus dari peta.', 'info');
+            });
+        }
+    }
+
+    // Bersihkan formulir rute
+    clearRoutes() {
+        this.routePolylines.forEach(p => this.leafletMap.removeLayer(p));
+        this.routePolylines = [];
+        const in2 = document.getElementById('input-loc-2');
+        if (in2) in2.value = '';
+        if (window.showToast) window.showToast('Formulir rute & polylines dibersihkan.', 'info');
+    }
+
+    // Reset Peta ke Kampus ITERA Lampung
+    resetToItera() {
+        this.station.lat = -5.35824;
+        this.station.lng = 105.31465;
+        this.station.name = 'Pendeteksi Gempa EWS ITERA - ESP32 C3';
+        if (this.stationMarker) {
+            this.stationMarker.setLatLng([this.station.lat, this.station.lng]);
+            this.updateStationPopup();
+        }
+        this.leafletMap.setView([this.station.lat, this.station.lng], 14, { animate: true });
+        this.renderQuakeRadiusZone(25);
+        this.calculateRealRoadRoutes();
+        this.renderShelterMarkers();
+
+        const in1 = document.getElementById('input-loc-1');
+        if (in1) in1.value = 'Kampus ITERA Lampung (-5.35824, 105.31465)';
+        const in2 = document.getElementById('input-loc-2');
+        if (in2) in2.value = 'Posko 1 (GOR ITERA / Embung A) 🟢';
+
+        if (window.showToast) window.showToast('Peta & parameter GIS di-reset ke Kampus ITERA Lampung 🏫', 'info');
     }
 
     // Pencarian Alamat & Tempat Google Maps (Geocoding Akurat)
@@ -448,7 +619,7 @@ class GeoMappingEngine {
                 this.calculateRealRoadRoutes();
 
                 if (window.showToast) {
-                    window.showToast(`GPS Terhubung! Akurasi: ${accuracyMeters}m. Rute Google Maps diperbarui.`, 'success');
+                    window.showToast(`GPS Terhubung! Akurasi: ±${accuracyMeters}m. Rute diperbarui.`, 'success');
                 }
             },
             (err) => {
@@ -541,6 +712,42 @@ class GeoMappingEngine {
             btnGps.addEventListener('click', () => this.detectUserGPS());
         }
 
+        // Tombol Tambah Posko Kustom (Buka modal atau aktifkan klik di peta)
+        const btnAddShelter = document.getElementById('btn-add-shelter');
+        const modalAddShelter = document.getElementById('add-shelter-modal');
+        if (btnAddShelter && modalAddShelter) {
+            btnAddShelter.addEventListener('click', () => {
+                modalAddShelter.classList.remove('hidden');
+                modalAddShelter.setAttribute('aria-hidden', 'false');
+            });
+        }
+
+        const btnPickOnMap = document.getElementById('btn-pick-shelter-on-map');
+        if (btnPickOnMap && modalAddShelter) {
+            btnPickOnMap.addEventListener('click', () => {
+                modalAddShelter.classList.add('hidden');
+                this.isPickingShelterOnMap = true;
+                if (window.showToast) {
+                    window.showToast('Klik di area mana saja pada peta untuk menaruh posko evakuasi baru 🎯', 'info');
+                }
+            });
+        }
+
+        const btnSubmitShelter = document.getElementById('btn-submit-new-shelter');
+        if (btnSubmitShelter) {
+            btnSubmitShelter.addEventListener('click', () => {
+                const name = document.getElementById('new-shelter-name').value;
+                const lat = parseFloat(document.getElementById('new-shelter-lat').value);
+                const lng = parseFloat(document.getElementById('new-shelter-lng').value);
+                if (isNaN(lat) || isNaN(lng)) {
+                    alert('Harap isi koordinat latitude dan longitude yang valid!');
+                    return;
+                }
+                modalAddShelter.classList.add('hidden');
+                this.addNewShelter(name, lat, lng);
+            });
+        }
+
         // Tombol Cari Alamat / Tempat di Google Maps
         const searchInput = document.getElementById('gmaps-search-box');
         const btnSearch = document.getElementById('btn-gmaps-search');
@@ -556,8 +763,18 @@ class GeoMappingEngine {
             });
         }
 
-        // Klik Kanan pada Peta untuk memindahkan stasiun sensor
+        // Klik pada Peta (untuk tambah posko atau geser stasiun)
         if (this.leafletMap) {
+            this.leafletMap.on('click', (e) => {
+                if (this.isPickingShelterOnMap) {
+                    this.isPickingShelterOnMap = false;
+                    const name = prompt('Nama Posko Evakuasi Baru:', 'Posko Tambahan Baru');
+                    if (name) {
+                        this.addNewShelter(name, e.latlng.lat, e.latlng.lng);
+                    }
+                }
+            });
+
             this.leafletMap.on('contextmenu', (e) => {
                 const clickPos = e.latlng;
                 this.station.lat = clickPos.lat;
@@ -579,19 +796,44 @@ class GeoMappingEngine {
         // Reset / Undo View button
         const btnUndo = document.getElementById('top-btn-undo');
         if (btnUndo) {
-            btnUndo.addEventListener('click', () => {
-                this.station.lat = -5.35824;
-                this.station.lng = 105.31465;
-                this.station.name = 'Pendeteksi Gempa EWS ITERA - ESP32 C3';
-                this.stationMarker.setLatLng([this.station.lat, this.station.lng]);
-                this.updateStationPopup();
-                this.leafletMap.setView([this.station.lat, this.station.lng], 14, { animate: true });
-                this.renderQuakeRadiusZone(25);
-                this.calculateRealRoadRoutes();
-                const in1 = document.getElementById('input-loc-1');
-                if (in1) in1.value = 'Kampus ITERA Lampung (-5.35824, 105.31465)';
-                if (window.showToast) window.showToast('Peta di-reset ke Kampus ITERA Lampung', 'info');
+            btnUndo.addEventListener('click', () => this.resetToItera());
+        }
+
+        // Tombol Mode Peta Penuh (Top Map Toggle)
+        const topBtnMap = document.getElementById('top-btn-map');
+        const routingPanel = document.getElementById('routing-panel');
+        const telemetryHud = document.getElementById('telemetry-hud');
+        if (topBtnMap) {
+            topBtnMap.addEventListener('click', () => {
+                topBtnMap.classList.toggle('active');
+                if (routingPanel) routingPanel.classList.toggle('collapsed');
+                if (telemetryHud) telemetryHud.classList.toggle('hidden');
+                setTimeout(() => this.leafletMap.invalidateSize(), 350);
+                if (window.showToast) {
+                    const isFull = routingPanel.classList.contains('collapsed');
+                    window.showToast(isFull ? 'Mode Peta Penuh Satelit Google Maps Aktif 🛰️' : 'Mode Command Center Normal Diaktifkan 🗺️', 'info');
+                }
             });
+        }
+
+        // Collapse / Expand Floating Routing Panel
+        const btnCollapsePanel = document.getElementById('btn-collapse-panel');
+        const collapseIcon = document.getElementById('collapse-icon');
+        if (btnCollapsePanel && routingPanel) {
+            btnCollapsePanel.addEventListener('click', () => {
+                routingPanel.classList.toggle('collapsed');
+                const isCollapsed = routingPanel.classList.contains('collapsed');
+                if (collapseIcon) {
+                    collapseIcon.className = isCollapsed ? 'fa-solid fa-chevron-right' : 'fa-solid fa-chevron-left';
+                }
+                setTimeout(() => this.leafletMap.invalidateSize(), 350);
+            });
+        }
+
+        // Tombol Bersihkan Formulir Rute
+        const btnClearRoutes = document.getElementById('btn-clear-routes');
+        if (btnClearRoutes) {
+            btnClearRoutes.addEventListener('click', () => this.clearRoutes());
         }
 
         // Tombol Ganti Layer Peta Google Maps
@@ -604,10 +846,15 @@ class GeoMappingEngine {
         const btnFullscreen = document.getElementById('btn-fullscreen');
         if (btnFullscreen) {
             btnFullscreen.addEventListener('click', () => {
+                const icon = btnFullscreen.querySelector('i');
                 if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen();
+                    document.documentElement.requestFullscreen().then(() => {
+                        if (icon) icon.className = 'fa-solid fa-compress';
+                    });
                 } else {
-                    document.exitFullscreen();
+                    document.exitFullscreen().then(() => {
+                        if (icon) icon.className = 'fa-solid fa-expand';
+                    });
                 }
             });
         }
@@ -625,13 +872,22 @@ class GeoMappingEngine {
             });
         }
 
+        // Optimize Route (Evaluasi Jalur Teraman Luar Bahaya)
+        const btnOptimizeRoute = document.getElementById('btn-optimize-route');
+        if (btnOptimizeRoute) {
+            btnOptimizeRoute.addEventListener('click', () => this.optimizeRoute());
+        }
+
         // Lasso / Hitung Radius Bahaya
         const btnLasso = document.getElementById('btn-lasso-zone');
         if (btnLasso) {
             btnLasso.addEventListener('click', () => {
                 if (this.leafletMap && this.quakeRadiusCircle) {
                     this.leafletMap.fitBounds(this.quakeRadiusCircle.getBounds(), { padding: [50, 50] });
-                    if (window.showToast) window.showToast(`Fokus Zona Bahaya Gempa: Radius ${this.currentRadiusKm} KM`, 'info');
+                    const pgaVal = (this.currentRadiusKm / 550).toFixed(3);
+                    if (window.showToast) {
+                        window.showToast(`Zona Bahaya Gempa MPU-6050 (PGA: ${pgaVal}g) — Radius Dampak: ${this.currentRadiusKm} KM ⚠️`, 'warn');
+                    }
                 }
             });
         }
@@ -640,38 +896,34 @@ class GeoMappingEngine {
         const btnDeleteAll = document.getElementById('btn-dock-reset-all');
         if (btnDeleteAll) {
             btnDeleteAll.addEventListener('click', () => {
-                if (confirm('Reset semua radius gempa dan rute evakuasi Google Maps?')) {
-                    this.station.lat = -5.35824;
-                    this.station.lng = 105.31465;
-                    this.renderQuakeRadiusZone(25);
-                    this.calculateRealRoadRoutes();
-                    this.leafletMap.setView([this.station.lat, this.station.lng], 14);
-                    if (window.showToast) window.showToast('Semua parameter GIS telah di-reset ke nilai awal.', 'success');
+                if (confirm('Reset semua radius gempa dan rute evakuasi Google Maps ke kondisi awal?')) {
+                    this.resetToItera();
                 }
             });
         }
 
-        // Color Picker
+        // Color Picker & Preset Dots
         const colorNative = document.getElementById('route-color-native');
         const colorHex = document.getElementById('route-color-hex');
         const colorSwatch = document.getElementById('color-swatch-display');
 
-        if (colorNative && colorHex && colorSwatch) {
-            colorNative.addEventListener('input', (e) => {
-                const c = e.target.value;
-                colorHex.value = c;
-                colorSwatch.style.backgroundColor = c;
-                this.activeRouteColor = c;
-                if (this.routePolylines[0]) this.routePolylines[0].setStyle({ color: c });
+        const applyRouteColor = (c) => {
+            if (colorHex) colorHex.value = c;
+            if (colorSwatch) colorSwatch.style.backgroundColor = c;
+            if (colorNative) colorNative.value = c;
+            this.activeRouteColor = c;
+            this.routePolylines.forEach(p => p.setStyle({ color: c }));
+        };
+
+        if (colorNative) colorNative.addEventListener('input', (e) => applyRouteColor(e.target.value));
+        if (colorHex) colorHex.addEventListener('change', (e) => applyRouteColor(e.target.value));
+
+        document.querySelectorAll('.preset-dot').forEach((dot) => {
+            dot.addEventListener('click', () => {
+                const c = dot.getAttribute('data-color');
+                if (c) applyRouteColor(c);
             });
-            colorHex.addEventListener('change', (e) => {
-                const c = e.target.value;
-                colorNative.value = c;
-                colorSwatch.style.backgroundColor = c;
-                this.activeRouteColor = c;
-                if (this.routePolylines[0]) this.routePolylines[0].setStyle({ color: c });
-            });
-        }
+        });
     }
 }
 
@@ -679,3 +931,4 @@ class GeoMappingEngine {
 document.addEventListener('DOMContentLoaded', () => {
     window.geoMap = new GeoMappingEngine();
 });
+
