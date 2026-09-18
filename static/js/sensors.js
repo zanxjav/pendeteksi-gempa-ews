@@ -493,3 +493,4 @@ class SensorProcessor {
 
 // Global Sensor Processor Instance
 window.sensorProcessor = new SensorProcessor();
+window.sensorHub = window.sensorProcessor;

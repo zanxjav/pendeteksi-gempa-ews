@@ -4,22 +4,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Earthquake Monitor - Real-time Early Warning & Seismic Tracking</title>
-    <meta name="description" content="Sistem Peringatan Dini Gempa Bumi & Telemetri Sensor ESP32 Berbasis Django & OpenStreetMap Full Map.">
+    <title>GeoShield EWS - Earthquake Impact & Seismic Evacuation Command Center</title>
+    <meta name="description" content="Sistem Peringatan Dini Gempa Bumi & Telemetri Multi-Sensor ESP32 Berbasis Leaflet GIS Satellite & OpenStreetMap.">
     
     <!-- PWA Meta & Manifest -->
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <meta name="theme-color" content="#0b172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌋</text></svg>">
 
-    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+    <!-- Google Fonts: Plus Jakarta Sans, Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <!-- Leaflet CSS (OpenStreetMap GIS) -->
+    <!-- Leaflet CSS (OpenStreetMap & Satellite GIS) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     
     <!-- Font Awesome Icons 6 -->
@@ -28,13 +28,468 @@
     <!-- Chart.js for real-time telemetry -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Custom Stylesheet -->
+    <!-- Custom Stylesheet (Dark Satellite GIS Command Center Theme) -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
-<body class="dashboard-body">
+<body class="gis-command-body">
 
     <!-- ============================================================================== -->
-    <!-- GATEWAY: ESP32 BLUETOOTH & ACCESS POINT PROVISIONING WIZARD (MODAL GATEKEEPER) -->
+    <!-- 1. TOP GIS HEADER NAVIGATION BAR                                               -->
+    <!-- ============================================================================== -->
+    <header class="gis-top-navbar">
+        <div class="nav-left-group">
+            <!-- App Icon / Home -->
+            <button class="nav-btn btn-home" title="GeoShield EWS Home">
+                <i class="fa-solid fa-house"></i>
+            </button>
+            <!-- Map Mode Active (Blue) -->
+            <button class="nav-btn btn-map-toggle active" id="top-btn-map" title="Tampilan Peta Satelit GIS">
+                <i class="fa-solid fa-map"></i>
+            </button>
+            <!-- Grid / Multi-Sensor Toggle -->
+            <button class="nav-btn" id="top-btn-grid" title="Buka Dashboard Telemetri Sensor ESP32">
+                <i class="fa-solid fa-table-cells-large"></i>
+            </button>
+            <!-- Undo / Reset View -->
+            <button class="nav-btn" id="top-btn-undo" title="Reset Pandangan Peta">
+                <i class="fa-solid fa-rotate-left"></i>
+            </button>
+        </div>
+
+        <!-- Center Command Title -->
+        <div class="nav-center-title">
+            <span class="org-name">GeoShield EWS</span>
+            <span class="title-sep">/</span>
+            <h1 class="zone-title" id="display-zone-title">Earthquake Impact & Seismic Zone — Stasiun ITERA (ESP32-C3)</h1>
+            <span id="badge-esp-live" class="badge-live-pulse"><i class="fa-solid fa-circle"></i> LIVE NODE</span>
+        </div>
+
+        <!-- Right Quick Actions -->
+        <div class="nav-right-group">
+            <!-- Satellite Layer Switcher Button -->
+            <button class="nav-btn" id="btn-toggle-satellite" title="Ganti Mode Peta (Satelit / Gelap / OSM)">
+                <i class="fa-solid fa-layer-group"></i>
+            </button>
+            <!-- Toggle ESP32 Telemetry HUD -->
+            <button class="nav-btn active-accent" id="btn-toggle-hud" title="Tampilkan/Sembunyikan Panel Telemetri Sensor ESP32">
+                <i class="fa-solid fa-microchip"></i>
+                <span class="nav-pill-txt">ESP32 Telemetri</span>
+            </button>
+            <!-- Bluetooth Provisioning Quick Launch -->
+            <button class="nav-btn btn-bt-quick" id="btn-open-provisioning" title="Setup WiFi ESP32 via Bluetooth HC-06">
+                <i class="fa-brands fa-bluetooth-b"></i>
+            </button>
+            <!-- Siren Sound Mute/Unmute -->
+            <button class="nav-btn" id="btn-toggle-sound" title="Sirine Suara Gempa">
+                <i class="fa-solid fa-volume-high" id="sound-icon"></i>
+            </button>
+            <!-- Fullscreen Mode -->
+            <button class="nav-btn" id="btn-fullscreen" title="Layar Penuh">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- ============================================================================== -->
+    <!-- 2. MAIN APPLICATION WORKSPACE (SIDEBAR RAIL + FLOATING PANEL + MAP + DOCK)     -->
+    <!-- ============================================================================== -->
+    <div class="gis-main-viewport">
+
+        <!-- 2A. ULTRA-SLIM LEFT SIDEBAR RAIL (Matching User Screenshot) -->
+        <aside class="gis-left-rail">
+            <div class="rail-top">
+                <button class="rail-icon-btn active" id="rail-btn-routing" title="Jalur Evakuasi & Radius Gempa">
+                    <i class="fa-solid fa-diamond-turn-right"></i>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-sensors" title="Data Multi-Sensor ESP32">
+                    <i class="fa-solid fa-wave-square"></i>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-flood" title="Sensor Banjir HC-SR04">
+                    <i class="fa-solid fa-water"></i>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-rain" title="Sensor Hujan FC-37">
+                    <i class="fa-solid fa-cloud-showers-heavy"></i>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-tds" title="Sensor Kualitas Air TDS">
+                    <i class="fa-solid fa-flask"></i>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-bluetooth" title="Setup Bluetooth HC-06">
+                    <i class="fa-brands fa-bluetooth-b text-cyan"></i>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-settings" title="Pengaturan Ambang Batas EWS">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+            <div class="rail-bottom">
+                <button class="rail-icon-btn" id="rail-btn-export" title="Ekspor Data Laporan">
+                    <i class="fa-solid fa-share-nodes"></i>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-admin" title="Admin Panel Django">
+                    <a href="/admin/" target="_blank" style="color: inherit;"><i class="fa-solid fa-users-gear"></i></a>
+                </button>
+                <button class="rail-icon-btn" id="rail-btn-logout" title="Status Sistem">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 2B. FLOATING OVERLAY PANEL: ROUTING / DIRECTIONS / SEISMIC EVACUATION ZONE -->
+        <section class="gis-floating-panel" id="routing-panel">
+            <div class="panel-card-inner">
+                <!-- Panel Header -->
+                <div class="panel-header">
+                    <div class="panel-title-area">
+                        <i class="fa-solid fa-sliders text-cyan"></i>
+                        <h2 class="panel-heading">ROUTING / DIRECTIONS</h2>
+                        <i class="fa-solid fa-ellipsis text-muted"></i>
+                    </div>
+                    <div class="panel-header-actions">
+                        <button class="btn-panel-ghost" id="btn-routing-settings" title="Pengaturan Jalur">
+                            <i class="fa-solid fa-gear"></i> Settings
+                        </button>
+                        <button class="btn-panel-ghost" id="btn-clear-routes" title="Bersihkan Formulir">
+                            <i class="fa-solid fa-eraser"></i> Clear Form
+                        </button>
+                        <button class="btn-panel-close" id="btn-collapse-panel" title="Tutup / Buka Panel">
+                            <i class="fa-solid fa-chevron-left" id="collapse-icon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Section: Enter Locations / Sensor Nodes -->
+                <div class="panel-section">
+                    <div class="section-label-group">
+                        <span class="section-title">ENTER LOCATIONS</span>
+                        <span class="section-subtitle">Drag and drop to customize ordering</span>
+                    </div>
+
+                    <!-- Location Input 1: ESP32 Station (Epicenter) -->
+                    <div class="loc-input-row" id="loc-row-1">
+                        <div class="badge-num badge-green">1</div>
+                        <div class="input-symbol">=</div>
+                        <div class="loc-field-wrap">
+                            <input type="text" class="loc-input" id="input-loc-1" value="Stasiun EWS ITERA (Pusat Gempa ESP32)" readonly>
+                            <span class="loc-tag-pga" id="badge-loc-pga">PGA: 0.045g</span>
+                        </div>
+                    </div>
+
+                    <!-- Location Input 2: Evacuation Shelter (Safe Zone) -->
+                    <div class="loc-input-row" id="loc-row-2">
+                        <div class="badge-num badge-red">2</div>
+                        <div class="input-symbol">=</div>
+                        <div class="loc-field-wrap">
+                            <input type="text" class="loc-input" id="input-loc-2" value="Posko Evakuasi GOR ITERA (Zona Aman 🟢)">
+                        </div>
+                    </div>
+
+                    <!-- Location Action Buttons -->
+                    <div class="loc-actions-group">
+                        <button class="btn-green-pill" id="btn-add-shelter">
+                            <i class="fa-solid fa-location-dot"></i> Add Additional Location
+                        </button>
+                        <button class="btn-green-pill" id="btn-lasso-zone">
+                            <i class="fa-solid fa-circle-nodes"></i> Hitung Radius Guncangan Gempa (PGA)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Section: Route Directions Color -->
+                <div class="panel-section">
+                    <span class="section-title">ROUTE DIRECTIONS COLOR</span>
+                    <div class="color-picker-row">
+                        <div class="color-input-box">
+                            <input type="text" id="route-color-hex" value="#06B6D4" class="color-hex-text">
+                        </div>
+                        <div class="color-swatch-circle" id="color-swatch-display" style="background-color: #06B6D4;">
+                            <input type="color" id="route-color-native" value="#06B6D4">
+                        </div>
+                        <div class="color-palette-presets">
+                            <span class="preset-dot" style="background:#06B6D4" data-color="#06B6D4"></span>
+                            <span class="preset-dot" style="background:#38BDF8" data-color="#38BDF8"></span>
+                            <span class="preset-dot" style="background:#F59E0B" data-color="#F59E0B"></span>
+                            <span class="preset-dot" style="background:#10B981" data-color="#10B981"></span>
+                        </div>
+                    </div>
+
+                    <!-- Route Action Buttons -->
+                    <div class="route-main-actions">
+                        <button class="btn-route-primary" id="btn-get-directions">
+                            Get Directions (Kalkulasi Rute)
+                        </button>
+                        <button class="btn-route-outline" id="btn-optimize-route">
+                            Optimize Route (Hindari Zona Bahaya)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Section: Evacuation Route Summary Cards -->
+                <div class="panel-section panel-routes-list">
+                    <!-- Route 1 (Cyan) -->
+                    <div class="route-card-item active" id="card-route-1">
+                        <div class="route-badge-box badge-cyan">
+                            <strong>ROUTE #1</strong>
+                            <small>(1 STOP) — Posko GOR</small>
+                        </div>
+                        <div class="route-metrics">
+                            <span class="r-dist">3.2 km — 6 mins</span>
+                            <span class="r-status-safe">ZONA AMAN 🟢</span>
+                        </div>
+                        <div class="route-tools">
+                            <i class="fa-solid fa-gear"></i>
+                            <i class="fa-solid fa-caret-down"></i>
+                        </div>
+                    </div>
+
+                    <!-- Route 2 (Yellow) -->
+                    <div class="route-card-item" id="card-route-2">
+                        <div class="route-badge-box badge-yellow">
+                            <strong>ROUTE #2</strong>
+                            <small>(1 STOP) — RSUD Airan</small>
+                        </div>
+                        <div class="route-metrics">
+                            <span class="r-dist">6.5 km — 14 mins</span>
+                            <span class="r-status-safe">RUTE ALTERNATIF 🟡</span>
+                        </div>
+                        <div class="route-tools">
+                            <i class="fa-solid fa-gear"></i>
+                            <i class="fa-solid fa-caret-down"></i>
+                        </div>
+                    </div>
+
+                    <!-- Route 3 (Green) -->
+                    <div class="route-card-item" id="card-route-3">
+                        <div class="route-badge-box badge-green">
+                            <strong>ROUTE #3</strong>
+                            <small>(1 STOP) — Way Huwi</small>
+                        </div>
+                        <div class="route-metrics">
+                            <span class="r-dist">8.1 km — 18 mins</span>
+                            <span class="r-status-safe">EVAKUASI CADANGAN 🟢</span>
+                        </div>
+                        <div class="route-tools">
+                            <i class="fa-solid fa-gear"></i>
+                            <i class="fa-solid fa-caret-down"></i>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- 2C. FULLSCREEN SATELLITE GIS MAP CANVAS -->
+        <main class="gis-map-container">
+            <div id="leaflet-map" class="map-full-viewport"></div>
+
+            <!-- Bottom Left Map Zoom Controls (Black square styling, matching reference) -->
+            <div class="map-ctrl-zoom-stack">
+                <button class="map-zoom-btn" id="btn-zoom-in" title="Perbesar Peta"><i class="fa-solid fa-plus"></i></button>
+                <button class="map-zoom-btn" id="btn-zoom-out" title="Perkecil Peta"><i class="fa-solid fa-minus"></i></button>
+            </div>
+
+            <!-- Bottom Left Google/Esri Attribution Stamp -->
+            <div class="map-brand-stamp">
+                <span>GeoShield EWS GIS</span> &bull; <span>Esri World Imagery</span> &bull; <span>OpenStreetMap</span>
+            </div>
+        </main>
+
+        <!-- 2D. FLOATING ESP32 MULTI-SENSOR TELEMETRY HUD (Top-Right Collapsible) -->
+        <aside class="gis-telemetry-hud" id="telemetry-hud">
+            <div class="hud-header">
+                <div class="hud-title-wrap">
+                    <i class="fa-solid fa-microchip text-primary"></i>
+                    <h3>Telemetri Sensor ESP32</h3>
+                </div>
+                <div class="hud-badge-live">
+                    <span class="hud-dot green"></span>
+                    <span id="hud-conn-text">Terhubung</span>
+                </div>
+                <button class="btn-hud-min" id="btn-min-hud" title="Kecilkan/Besarkan"><i class="fa-solid fa-chevron-down"></i></button>
+            </div>
+
+            <div class="hud-body" id="hud-body-content">
+                <!-- 1. MPU-6050 Accelerometer / Gempa -->
+                <div class="hud-card card-seismic">
+                    <div class="hud-card-top">
+                        <span class="hud-label"><i class="fa-solid fa-volcano text-danger"></i> 1. Sensor Gempa (MPU-6050)</span>
+                        <span class="hud-pill pill-danger" id="seismic-status-badge">AWAS</span>
+                    </div>
+                    <div class="hud-grid-metrics">
+                        <div class="m-metric-item">
+                            <span class="m-title">PGA Seismik</span>
+                            <span class="m-val text-danger" id="val-pga">0.045 g</span>
+                        </div>
+                        <div class="m-metric-item">
+                            <span class="m-title">Gal (cm/s²)</span>
+                            <span class="m-val" id="val-gal">44.1</span>
+                        </div>
+                        <div class="m-metric-item">
+                            <span class="m-title">Magnitudo</span>
+                            <span class="m-val" id="val-magnitude">5.8 M</span>
+                        </div>
+                        <div class="m-metric-item">
+                            <span class="m-title">Skala MMI</span>
+                            <span class="m-val" id="val-mmi">VI+ (Kuat)</span>
+                        </div>
+                    </div>
+                    <!-- Live Seismograph Waveform Canvas -->
+                    <div class="seismo-canvas-wrap">
+                        <canvas id="seismographCanvas" width="280" height="48"></canvas>
+                    </div>
+                </div>
+
+                <!-- 2. HC-SR04 Level Air / Banjir -->
+                <div class="hud-card card-flood">
+                    <div class="hud-card-top">
+                        <span class="hud-label"><i class="fa-solid fa-water text-cyan"></i> 2. Muka Air / Banjir (HC-SR04)</span>
+                        <span class="hud-pill pill-success" id="flood-badge">NORMAL</span>
+                    </div>
+                    <div class="hud-progress-row">
+                        <div class="hud-stat-text">
+                            <span class="text-white font-bold" id="val-water-level">35.2 cm</span>
+                            <small class="text-muted"> / Batas Bahaya: 150 cm</small>
+                        </div>
+                        <div class="hud-bar-bg">
+                            <div class="hud-bar-fill fill-cyan" id="water-fill-level" style="width: 23%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. FC-37 Sensor Curah Hujan -->
+                <div class="hud-card card-rain">
+                    <div class="hud-card-top">
+                        <span class="hud-label"><i class="fa-solid fa-cloud-showers-heavy text-yellow"></i> 3. Curah Hujan (FC-37)</span>
+                        <span class="hud-pill pill-warning" id="rain-badge">Hujan Sedang</span>
+                    </div>
+                    <div class="hud-metric-flex">
+                        <div>
+                            <div class="text-white font-bold" id="val-rain-rate">15.4 mm/jam</div>
+                            <small class="text-muted" id="rain-condition-text">Hujan Sedang Teratur</small>
+                        </div>
+                        <div class="text-right">
+                            <small class="text-muted">ADC Raw:</small>
+                            <span class="text-muted" id="val-rain-raw">3200</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Analog TDS Meter Sensor -->
+                <div class="hud-card card-tds">
+                    <div class="hud-card-top">
+                        <span class="hud-label"><i class="fa-solid fa-flask text-green"></i> 4. Kualitas Air (TDS Meter)</span>
+                        <span class="hud-pill pill-success" id="tds-badge">Air Bersih</span>
+                    </div>
+                    <div class="hud-metric-flex">
+                        <div>
+                            <div class="text-white font-bold" id="val-tds">128.5 ppm</div>
+                            <small class="text-muted" id="tds-quality-text">Layak Minum & Konsumsi Darurat</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Sirine Buzzer & ESP32 Hardware Status -->
+                <div class="hud-card card-hardware">
+                    <div class="hw-status-row">
+                        <span><i class="fa-solid fa-bullhorn text-danger"></i> Sirine Buzzer EWS:</span>
+                        <strong id="buzzer-status-text" class="text-success">SIAGA (AMAN)</strong>
+                    </div>
+                    <div class="hw-status-row mt-1">
+                        <span><i class="fa-solid fa-wifi text-cyan"></i> WiFi RSSI:</span>
+                        <span id="wifi-rssi-text">-58 dBm (Sangat Kuat)</span>
+                    </div>
+                    <div class="hw-status-row mt-1">
+                        <span><i class="fa-solid fa-tower-broadcast text-yellow"></i> IP Node ESP32:</span>
+                        <span class="font-mono" id="node-ip-text">10.234.178.67</span>
+                    </div>
+                    <button class="btn-bt-reconnect mt-2" id="btn-reconnect-bt">
+                        <i class="fa-brands fa-bluetooth-b"></i> Kelola WiFi via Bluetooth HC-06
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 2E. BOTTOM DOCK / ACTIVE RADIUS & ROUTE FILTER PILLS (Matching User Screenshot) -->
+        <footer class="gis-bottom-dock">
+            <!-- Left Action Tools -->
+            <div class="dock-left-actions">
+                <button class="btn-dock-tool" id="btn-dock-print" title="Cetak Peta Laporan Bencana">
+                    <i class="fa-solid fa-print"></i> Print
+                </button>
+                <button class="btn-dock-tool btn-dock-accent" id="btn-dock-export" title="Ekspor GeoJSON / CSV">
+                    <i class="fa-solid fa-file-export"></i> Export File
+                </button>
+            </div>
+
+            <!-- Center Filter Badges / Active Pills (Matches reference screenshot 1:1) -->
+            <div class="dock-pills-scroll" id="dock-pills-container">
+                <!-- Blue Pin Pill: Radius Gempa -->
+                <div class="dock-pill pill-blue" id="pill-radius-quake">
+                    <i class="fa-solid fa-location-pin"></i>
+                    <span>Radius Gempa ESP32 (PGA 0.045g): <strong>25 KM</strong></span>
+                    <button class="pill-del-btn" title="Hapus Radius"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+
+                <!-- Drive Time Pill 1 -->
+                <div class="dock-pill pill-dark" id="pill-drive-1">
+                    <i class="fa-solid fa-car"></i>
+                    <span>Drive Time: 1. Posko GOR ITERA, <strong>6M</strong></span>
+                    <button class="pill-del-btn" title="Hapus Rute"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+
+                <!-- Drive Time Pill 2 -->
+                <div class="dock-pill pill-dark" id="pill-drive-2">
+                    <i class="fa-solid fa-car"></i>
+                    <span>Drive Time: 2. Posko RSUD Airan, <strong>14M</strong></span>
+                    <button class="pill-del-btn" title="Hapus Rute"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+
+                <!-- Sensor Pill 1: Flood -->
+                <div class="dock-pill pill-dark" id="pill-sensor-flood">
+                    <i class="fa-solid fa-water text-cyan"></i>
+                    <span>Air HC-SR04: <strong>35.2 cm</strong></span>
+                    <button class="pill-del-btn" title="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+
+                <!-- Sensor Pill 2: Rain -->
+                <div class="dock-pill pill-dark" id="pill-sensor-rain">
+                    <i class="fa-solid fa-cloud-showers-heavy text-yellow"></i>
+                    <span>Hujan FC-37: <strong>15.4 mm/jam</strong></span>
+                    <button class="pill-del-btn" title="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+
+                <!-- Sensor Pill 3: TDS -->
+                <div class="dock-pill pill-dark" id="pill-sensor-tds">
+                    <i class="fa-solid fa-flask text-green"></i>
+                    <span>TDS: <strong>128.5 ppm</strong></span>
+                    <button class="pill-del-btn" title="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+
+                <!-- Active Route Pills -->
+                <div class="dock-pill pill-route" id="pill-route-1">
+                    <span>Route #1</span>
+                    <button class="pill-del-btn"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+                <div class="dock-pill pill-route" id="pill-route-2">
+                    <span>Route #2</span>
+                    <button class="pill-del-btn"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+                <div class="dock-pill pill-route" id="pill-route-3">
+                    <span>Route #3</span>
+                    <button class="pill-del-btn"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            </div>
+
+            <!-- Right Reset Button (Red DELETE ALL button matching screenshot) -->
+            <div class="dock-right-actions">
+                <button class="btn-dock-delete-all" id="btn-dock-reset-all" title="Reset Semua Radius dan Rute Evakuasi">
+                    <i class="fa-solid fa-trash-can"></i> DELETE ALL
+                </button>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- ============================================================================== -->
+    <!-- 3. GATEWAY: ESP32 BLUETOOTH HC-06 PROVISIONING WIZARD (MODAL POPUP)             -->
     <!-- ============================================================================== -->
     <div id="provisioning-modal" class="prov-modal-overlay" aria-hidden="true">
         <div class="prov-modal-dialog">
@@ -44,39 +499,18 @@
                         <i class="fa-brands fa-bluetooth-b"></i>
                     </div>
                     <div>
-                        <h2>Setup WiFi & Bluetooth ESP32</h2>
-                        <p>Konfigurasi koneksi internet mikrokontroler sebelum masuk ke dashboard utama</p>
+                        <h2>Setup WiFi & Bluetooth ESP32 (HC-06)</h2>
+                        <p>Konfigurasi koneksi internet mikrokontroler stasiun EWS langsung dari browser</p>
                     </div>
                 </div>
                 <div class="prov-header-actions">
-                    <button id="btn-skip-provisioning" class="btn-text-skip" title="Lewati setup dan langsung buka dashboard">
-                        Lewati / Demo <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                    <button id="btn-close-provisioning" class="btn-icon-close" title="Tutup">
-                        <i class="fa-solid fa-xmark"></i>
+                    <button id="btn-skip-provisioning" class="btn-text-skip" title="Tutup dan kembali ke peta">
+                        Tutup <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
 
             <div class="prov-modal-body">
-                <!-- Step Indicator -->
-                <div class="prov-steps-nav">
-                    <div class="step-item active">
-                        <span class="step-num">1</span>
-                        <span class="step-txt">Hubungkan Bluetooth</span>
-                    </div>
-                    <div class="step-line"></div>
-                    <div class="step-item active">
-                        <span class="step-num">2</span>
-                        <span class="step-txt">Input SSID & Sandi</span>
-                    </div>
-                    <div class="step-line"></div>
-                    <div class="step-item">
-                        <span class="step-num">3</span>
-                        <span class="step-txt">Verifikasi & Masuk</span>
-                    </div>
-                </div>
-
                 <div class="prov-content-grid">
                     <!-- Left: Connection Form -->
                     <div class="prov-form-col">
@@ -130,7 +564,6 @@
                         <div class="prov-quick-actions mt-2">
                             <button id="btn-check-status-esp" class="btn-sm btn-outline"><i class="fa-solid fa-info-circle"></i> Cek Status</button>
                             <button id="btn-restart-esp" class="btn-sm btn-outline"><i class="fa-solid fa-rotate"></i> Reboot ESP32</button>
-                            <a href="http://192.168.4.1" target="_blank" class="btn-sm btn-outline" title="Akses Point Mode"><i class="fa-solid fa-globe"></i> AP 192.168.4.1</a>
                         </div>
                     </div>
 
@@ -153,7 +586,7 @@
                             </div>
                             <div class="terminal-footer">
                                 <button id="btn-enter-dashboard" class="btn btn-success btn-block hidden">
-                                    <i class="fa-solid fa-gauge-high"></i> Konfigurasi Sukses! Masuk ke Dashboard Utama
+                                    <i class="fa-solid fa-gauge-high"></i> Konfigurasi Sukses! Masuk ke Peta GIS
                                 </button>
                             </div>
                         </div>
@@ -163,475 +596,18 @@
         </div>
     </div>
 
-    <!-- ============================================================================== -->
-    <!-- EWS EMERGENCY ALERT POPUP OVERLAY (Hidden by default, triggered on quake)     -->
-    <!-- ============================================================================== -->
-    <div id="ews-alert-overlay" class="ews-overlay hidden">
-        <div class="alert-pulse-bg"></div>
-        <div class="alert-modal">
-            <div class="alert-badge"><i class="fa-solid fa-triangle-exclamation"></i> PERINGATAN DINI AKTIF</div>
-            <h2 id="alert-modal-title">GEMPA BUMI TERDETEKSI!</h2>
-            <p id="alert-modal-desc">Intensitas getaran seismik melebihi ambang batas aman. Segera lakukan evakuasi!</p>
-            <div class="alert-stats-grid">
-                <div class="alert-stat-card">
-                    <span class="label">PGA / Akselerasi</span>
-                    <span id="alert-pga-val" class="val text-danger">65 cm/s²</span>
-                </div>
-                <div class="alert-stat-card">
-                    <span class="label">Skala MMI</span>
-                    <span id="alert-mmi-val" class="val text-danger">VI (Kuat)</span>
-                </div>
-                <div class="alert-stat-card">
-                    <span class="label">Status EWS</span>
-                    <span id="alert-status-val" class="val text-danger">BAHAYA / SIAGA</span>
-                </div>
-            </div>
-            <div class="alert-actions">
-                <button id="btn-silence-alarm" class="btn btn-warning"><i class="fa-solid fa-volume-xmark"></i> Matikan Sirine</button>
-                <button id="btn-dismiss-alert" class="btn btn-secondary">Tutup Peringatan</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================================================== -->
-    <!-- MAIN APPLICATION WRAPPER (SIDEBAR + CONTENT)                                    -->
-    <!-- ============================================================================== -->
-    <div class="vehicle-layout-container">
-
-        <!-- 1. LEFT SIDEBAR (Dark Navy, matching reference image) -->
-        <aside class="sidebar-nav">
-            <div class="sidebar-top">
-                <div class="brand-logo-box">
-                    <!-- Modern Vehicle / EWS Station SVG Logo -->
-                    <div class="logo-icon-wrap">
-                        <i class="fa-solid fa-car-side logo-icon"></i>
-                        <span class="pulse-ring-sm"></span>
-                    </div>
-                </div>
-
-                <nav class="sidebar-menu">
-                    <a href="{% url 'monitoring:dashboard' %}" class="menu-link active">
-                        <i class="fa-solid fa-house-chimney"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <a href="#peta" id="sidebar-nav-peta" class="menu-link">
-                        <i class="fa-solid fa-map-location-dot"></i>
-                        <span>Peta</span>
-                    </a>
-                    <a href="#riwayat" id="sidebar-nav-riwayat" class="menu-link">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
-                        <span>Riwayat Perjalanan</span>
-                    </a>
-                    <a href="#perawatan" id="sidebar-nav-perawatan" class="menu-link">
-                        <i class="fa-solid fa-wrench"></i>
-                        <span>Perawatan</span>
-                    </a>
-                    <a href="#bluetooth" id="sidebar-nav-bluetooth" class="menu-link" title="Setup WiFi ESP32 via Bluetooth">
-                        <i class="fa-brands fa-bluetooth-b text-info"></i>
-                        <span>WiFi ESP32</span>
-                    </a>
-                    <a href="#pengaturan" id="sidebar-nav-pengaturan" class="menu-link">
-                        <i class="fa-solid fa-gear"></i>
-                        <span>Pengaturan</span>
-                    </a>
-                </nav>
-            </div>
-
-            <!-- Bottom Slogan Branding (matches reference image) -->
-            <div class="sidebar-bottom">
-                <div class="slogan-box">
-                    <p>Jaga Kendaraan</p>
-                    <p>Jaga Perjalanan</p>
-                    <p>Jaga Masa Depan</p>
-                </div>
-            </div>
-        </aside>
-
-        <!-- 2. MAIN APPLICATION CONTENT AREA -->
-        <div class="main-viewport">
-
-            <!-- TOP NAVBAR HEADER (Clean & Modern) -->
-            <header class="top-header">
-                <div class="header-left">
-                    <div class="header-title-group">
-                        <div class="header-icon">
-                            <i class="fa-solid fa-car-side"></i>
-                        </div>
-                        <div>
-                            <h1 class="header-main-title">Vehicle Monitor</h1>
-                            <p class="header-sub-title">Real-time Tracking & Vehicle Information</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="header-right">
-                    <!-- Status Online Pill -->
-                    <div class="header-pill status-online">
-                        <span class="dot-indicator green"></span>
-                        <span id="header-conn-status">Online</span>
-                    </div>
-
-                    <!-- Live Date & Clock -->
-                    <div class="header-pill date-clock">
-                        <i class="fa-regular fa-clock"></i>
-                        <span id="live-time-display">18 Sep 2026 14:31</span>
-                    </div>
-
-                    <!-- User Profile Badge -->
-                    <div class="user-profile-badge">
-                        <div class="user-avatar">
-                            <i class="fa-solid fa-circle-user"></i>
-                        </div>
-                        <div class="user-meta">
-                            <span class="user-name">Fauzan Javier Keza</span>
-                            <span class="user-role">User</span>
-                        </div>
-                    </div>
-
-                    <!-- Quick Action Buttons -->
-                    <div class="header-quick-actions">
-                        <button id="btn-open-provisioning" class="btn-top-action" title="Buka Pengaturan WiFi ESP32 via Bluetooth">
-                            <i class="fa-brands fa-bluetooth-b text-primary"></i> Setup WiFi
-                        </button>
-                        <button id="btn-install-pwa" class="btn-top-action hidden" title="Install Aplikasi ke HP / Komputer">
-                            <i class="fa-solid fa-download text-success"></i> Install App
-                        </button>
-                        <button id="btn-toggle-sound" class="btn-top-action" title="Sirine Suara">
-                            <i class="fa-solid fa-volume-high" id="sound-icon"></i>
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            <!-- DASHBOARD GRID LAYOUT -->
-            <div class="dashboard-content-layout">
-
-                <!-- LEFT / CENTER SECTION (MAP HERO + 4 METRIC CARDS) -->
-                <section class="center-content-column">
-
-                    <!-- ============================================================ -->
-                    <!-- FULL MAP HERO CARD (OpenStreetMap GIS with ITERA Landmark)   -->
-                    <!-- ============================================================ -->
-                    <div class="card full-map-card">
-                        <!-- Floating Top-Left Mode Pills -->
-                        <div class="map-floating-top-left">
-                            <button id="btn-mode-realtime" class="btn-floating-pill active">
-                                <i class="fa-solid fa-location-crosshairs"></i> Realtime
-                            </button>
-                            <button id="btn-mode-route" class="btn-floating-pill">
-                                <i class="fa-solid fa-route"></i> Rute
-                            </button>
-                        </div>
-
-                        <!-- Floating Top-Right Controls -->
-                        <div class="map-floating-top-right">
-                            <button id="btn-fullscreen-map" class="btn-floating-pill">
-                                <i class="fa-solid fa-expand"></i> Tampilkan Semua
-                            </button>
-                        </div>
-
-                        <!-- Leaflet Interactive Map Container -->
-                        <div id="leaflet-map" class="map-canvas-full"></div>
-
-                        <!-- Floating Station / Epicenter Interactive Tooltip Banner -->
-                        <div class="map-floating-info-card" id="map-marker-infocard">
-                            <div class="info-car-icon">
-                                <i class="fa-solid fa-gauge-high"></i>
-                            </div>
-                            <div class="info-texts">
-                                <div class="info-primary">Kecepatan <strong id="map-tooltip-speed">48 km/h</strong></div>
-                                <div class="info-coords">Lat: <span id="map-tooltip-lat">-5.4267</span> Lon: <span id="map-tooltip-lon">105.3179</span></div>
-                            </div>
-                        </div>
-
-                        <!-- Floating Bottom-Right Map Controls -->
-                        <div class="map-floating-bottom-right">
-                            <button id="btn-recenter-map" class="map-ctrl-btn" title="Pusatkan ke Posisi Sensor"><i class="fa-solid fa-crosshairs"></i></button>
-                            <button id="btn-zoom-in" class="map-ctrl-btn" title="Perbesar"><i class="fa-solid fa-plus"></i></button>
-                            <button id="btn-zoom-out" class="map-ctrl-btn" title="Perkecil"><i class="fa-solid fa-minus"></i></button>
-                        </div>
-
-                        <!-- Hidden Google Map Div fallback -->
-                        <div id="google-map" class="hidden"></div>
-                    </div>
-
-                    <!-- ============================================================ -->
-                    <!-- 4 METRIC CARDS ROW (Matching Reference Screenshot)          -->
-                    <!-- ============================================================ -->
-                    <div class="metric-quad-row">
-
-                        <!-- CARD 1: CIRCULAR SPEEDOMETER / ACCELERATION GAUGE -->
-                        <div class="card metric-box-card card-speedometer">
-                            <div class="speedometer-wrapper">
-                                <svg class="speedometer-svg" viewBox="0 0 200 130">
-                                    <!-- Background Arc -->
-                                    <path class="arc-bg" d="M 25 110 A 75 75 0 0 1 175 110" fill="none" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round" />
-                                    <!-- Progress Arc -->
-                                    <path id="speed-arc-progress" class="arc-fill" d="M 25 110 A 75 75 0 0 1 175 110" fill="none" stroke="#1A68FF" stroke-width="12" stroke-linecap="round" stroke-dasharray="235" stroke-dashoffset="118" />
-                                </svg>
-                                <div class="speed-center-text">
-                                    <span class="speed-number" id="val-speed-display">48</span>
-                                    <span class="speed-unit" id="val-speed-unit">km/h</span>
-                                </div>
-                            </div>
-                            <div class="speed-label-text">Kecepatan Saat Ini</div>
-                            
-                            <div class="speed-limit-badge">
-                                <div class="limit-circle">
-                                    <span id="val-speed-limit">60</span>
-                                </div>
-                                <div class="limit-info">
-                                    <span class="limit-title">Batas Kecepatan</span>
-                                    <span class="limit-val">60 km/h</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- CARD 2: FUEL / VIBRATION ENERGY STATUS -->
-                        <div class="card metric-box-card card-fuel">
-                            <div class="card-icon-header">
-                                <i class="fa-solid fa-gas-pump icon-blue"></i>
-                            </div>
-                            <div class="card-metric-title">Bahan Bakar</div>
-                            <div class="card-metric-value" id="val-fuel-display">62%</div>
-                            
-                            <div class="custom-progress-bar">
-                                <div class="progress-fill blue" id="fuel-progress-fill" style="width: 62%;"></div>
-                            </div>
-
-                            <div class="card-metric-footer">
-                                <div class="footer-bold" id="val-distance-est">± 440 km</div>
-                                <div class="footer-muted">Jarak Tempuh Estimasi</div>
-                            </div>
-                        </div>
-
-                        <!-- CARD 3: ENGINE TEMP / SENSOR TEMPERATURE -->
-                        <div class="card metric-box-card card-temp">
-                            <div class="card-icon-header">
-                                <i class="fa-solid fa-temperature-half icon-blue"></i>
-                            </div>
-                            <div class="card-metric-title">Suhu Mesin</div>
-                            <div class="card-metric-value" id="val-temp-display">86°C</div>
-
-                            <div class="custom-progress-bar">
-                                <div class="progress-fill green" id="temp-progress-fill" style="width: 65%;"></div>
-                            </div>
-
-                            <div class="card-metric-footer">
-                                <div class="status-indicator-dot green">
-                                    <span class="dot"></span>
-                                    <span class="txt" id="val-temp-status">Normal</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- CARD 4: MAINTENANCE / SENSOR HEALTH REMINDER -->
-                        <div class="card metric-box-card card-maintenance">
-                            <div class="card-icon-header">
-                                <i class="fa-solid fa-wrench icon-blue"></i>
-                            </div>
-                            <div class="card-metric-title">Pengingat Perawatan</div>
-
-                            <div class="maintenance-checklist">
-                                <div class="m-item">
-                                    <span class="m-dot yellow"></span>
-                                    <div class="m-texts">
-                                        <div class="m-name">Ganti Oli Mesin</div>
-                                        <div class="m-sub" id="val-oil-remaining">3.250 km lagi</div>
-                                    </div>
-                                </div>
-                                <div class="m-item">
-                                    <span class="m-dot green"></span>
-                                    <div class="m-texts">
-                                        <div class="m-name">Filter Udara</div>
-                                        <div class="m-sub" id="val-filter-remaining">8.750 km lagi</div>
-                                    </div>
-                                </div>
-                                <div class="m-item">
-                                    <span class="m-dot green"></span>
-                                    <div class="m-texts">
-                                        <div class="m-name">Ban</div>
-                                        <div class="m-sub" id="val-tire-remaining">12.000 km lagi</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                </section>
-
-                <!-- RIGHT SECTION (VEHICLE / SENSOR DETAILS & RECENT TRIP HISTORY) -->
-                <aside class="right-detail-column">
-
-                    <!-- TOP RIGHT CARD: VEHICLE / SENSOR STATION IDENTITY -->
-                    <div class="card vehicle-profile-card">
-                        <div class="profile-card-header">
-                            <div class="car-plate-group">
-                                <i class="fa-solid fa-car-side car-plate-icon"></i>
-                                <h2 class="car-plate-title" id="display-plate-number">BE 1234 XX</h2>
-                            </div>
-                            <span class="badge-status-active">Aktif</span>
-                        </div>
-
-                        <div class="car-illustration-wrap">
-                            <!-- Clean SVG Illustration of Vehicle / Sensor Station -->
-                            <svg class="car-vector-img" viewBox="0 0 320 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <ellipse cx="160" cy="130" rx="140" ry="8" fill="#E2E8F0"/>
-                                <!-- Car Body -->
-                                <path d="M40 100 L60 65 Q80 50 120 48 L200 48 Q235 50 255 70 L280 85 Q295 92 295 108 L295 115 Q295 118 290 118 L260 118 Q260 100 240 100 Q220 100 220 118 L110 118 Q110 100 90 100 Q70 100 70 118 L40 118 Q35 118 35 112 L35 105 Q35 100 40 100 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
-                                <!-- Roof & Windows -->
-                                <path d="M115 54 L195 54 Q220 55 235 70 L250 82 L70 82 L85 68 Q98 55 115 54 Z" fill="#3B82F6" opacity="0.85"/>
-                                <line x1="165" y1="54" x2="165" y2="82" stroke="#FFFFFF" stroke-width="3"/>
-                                <!-- Headlights & Details -->
-                                <path d="M275 88 L290 92 L285 98 L270 95 Z" fill="#FBBF24"/>
-                                <path d="M38 98 L48 98 L48 106 L38 106 Z" fill="#EF4444"/>
-                                <!-- Wheels -->
-                                <circle cx="90" cy="115" r="18" fill="#1E293B"/>
-                                <circle cx="90" cy="115" r="10" fill="#94A3B8"/>
-                                <circle cx="240" cy="115" r="18" fill="#1E293B"/>
-                                <circle cx="240" cy="115" r="10" fill="#94A3B8"/>
-                            </svg>
-                        </div>
-
-                        <div class="vehicle-title-wrap">
-                            <h3 class="vehicle-name" id="display-vehicle-model">Toyota Avanza</h3>
-                            <span class="vehicle-type">Mobil Keluarga</span>
-                            <div class="vehicle-odo-pill">
-                                <span>Odo: <strong id="display-odo-badge">97.248 km</strong></span>
-                            </div>
-                        </div>
-
-                        <div class="specs-data-list">
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-gauge-high text-primary"></i> Kecepatan
-                                </div>
-                                <div class="spec-val" id="spec-val-speed">48 km/h</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-route text-primary"></i> Jarak Tempuh (Trip)
-                                </div>
-                                <div class="spec-val" id="spec-val-trip">12.6 km</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-road text-primary"></i> Odo Total
-                                </div>
-                                <div class="spec-val" id="spec-val-odo">97.248 km</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-regular fa-calendar-days text-primary"></i> Tanggal & Waktu
-                                </div>
-                                <div class="spec-val" id="spec-val-datetime">18 Sep 2026 08:21</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-location-dot text-primary"></i> Lokasi
-                                </div>
-                                <div class="spec-val text-clickable" id="spec-val-location" title="Klik untuk fokus di peta">
-                                    -5.4267, 105.3179
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- BOTTOM RIGHT CARD: RECENT TRIP HISTORY (TIMELINE) -->
-                    <div class="card trip-history-card">
-                        <div class="trip-card-header">
-                            <div class="trip-header-title">
-                                <i class="fa-solid fa-route text-primary"></i>
-                                <h3>Riwayat Perjalanan Terakhir</h3>
-                            </div>
-                            <a href="#riwayat-lengkap" id="btn-view-all-trips" class="link-view-all">Lihat Semua</a>
-                        </div>
-
-                        <div class="trip-timeline-list" id="trip-timeline-container">
-                            <!-- Timeline Node 1 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                    <div class="v-line"></div>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:15</span>
-                                    <div class="t-desc">
-                                        <strong>Start - Jl. Terusan Ryacudu</strong>
-                                        <div class="t-sub">-5.4268, 105.3172</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Timeline Node 2 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                    <div class="v-line"></div>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:18</span>
-                                    <div class="t-desc">
-                                        <strong>Kecepatan 65 km/h</strong>
-                                        <div class="t-sub">Jl. Terusan Ryacudu</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Timeline Node 3 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                    <div class="v-line"></div>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:20</span>
-                                    <div class="t-desc">
-                                        <strong>Kecepatan 48 km/h</strong>
-                                        <div class="t-sub">Dekat Institut Teknologi Sumatera</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Timeline Node 4 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:21</span>
-                                    <div class="t-desc">
-                                        <strong>Lokasi Saat Ini</strong>
-                                        <div class="t-sub">-5.4267, 105.3179</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                </aside>
-
-            </div>
-
-        </div>
-
-    </div>
-
     <!-- Hidden audio alarm element for EWS siren -->
     <audio id="alarm-sound" preload="auto">
         <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
     </audio>
 
-    <!-- Leaflet JS -->
+    <!-- Leaflet JS (OpenStreetMap GIS & Satellite) -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <!-- Application Scripts -->
     <script src="{% static 'js/provisioning.js' %}"></script>
-    <script src="{% static 'js/ews.js' %}"></script>
     <script src="{% static 'js/sensors.js' %}"></script>
     <script src="{% static 'js/map.js' %}"></script>
-    <script src="{% static 'js/iot.js' %}"></script>
     <script src="{% static 'js/app.js' %}"></script>
 
     <!-- PWA Service Worker Registration -->
