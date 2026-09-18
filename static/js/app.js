@@ -1,230 +1,174 @@
 /**
  * GeoShield EWS - Main Application Controller
- * Coordinates GIS Map, Sensors, Early Warning System, and UI Modals
+ * Handles Dashboard telemetry gauges, clock, PWA installation, and event binding
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Live Clock System
+    // 1. Live Date & Clock Formatter (Matching Screenshot: "18 Sep 2025 08:21" style)
     const liveTimeDisplay = document.getElementById('live-time-display');
+    const specDateTime = document.getElementById('spec-val-datetime');
+
     const updateClock = () => {
-        if (!liveTimeDisplay) return;
         const now = new Date();
-        const options = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-        liveTimeDisplay.textContent = `${now.toLocaleTimeString('id-ID', options)} WIB`;
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = months[now.getMonth()];
+        const year = now.getFullYear();
+        const hour = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+
+        const formatted = `${day} ${month} ${year} ${hour}:${min}`;
+        if (liveTimeDisplay) liveTimeDisplay.textContent = formatted;
+        if (specDateTime) specDateTime.textContent = formatted;
     };
     setInterval(updateClock, 1000);
     updateClock();
 
-    // 2. Modals Control (Config & Hardware)
-    const modalConfig = document.getElementById('modal-config');
-    const modalHardware = document.getElementById('modal-hardware');
-    
-    const btnOpenConfig = document.getElementById('btn-open-config');
-    const btnCloseConfig = document.getElementById('btn-close-config');
-    const btnCancelConfig = document.getElementById('btn-cancel-config');
-    const formConfig = document.getElementById('form-station-config');
+    // 2. Speedometer Gauge Controller
+    const speedArc = document.getElementById('speed-arc-progress');
+    const speedDisplay = document.getElementById('val-speed-display');
+    const specSpeed = document.getElementById('spec-val-speed');
 
-    const btnOpenHardware = document.getElementById('btn-open-hardware');
-    const btnCloseHardware = document.getElementById('btn-close-hardware');
+    // Total length of semicircle arc path with radius 75: PI * 75 ≈ 235.6
+    const TOTAL_ARC_LENGTH = 235.6;
 
-    const btnGetCurrentLoc = document.getElementById('btn-get-current-loc');
-    const btnSyncEspLocation = document.getElementById('btn-sync-esp-location');
-    const cfgAutoSyncEsp = document.getElementById('cfg-auto-sync-esp');
+    const setSpeedometer = (speedValue, maxSpeed = 100) => {
+        const clamped = Math.max(0, Math.min(speedValue, maxSpeed));
+        const fraction = clamped / maxSpeed;
+        const offset = TOTAL_ARC_LENGTH * (1 - fraction);
 
-    // Load auto-sync setting
-    const savedAutoSync = localStorage.getItem('geoshield_auto_sync_esp');
-    if (cfgAutoSyncEsp && savedAutoSync !== null) {
-        cfgAutoSyncEsp.checked = savedAutoSync === 'true';
-    }
-
-    // Open/Close Config Modal
-    if (btnOpenConfig && modalConfig) {
-        btnOpenConfig.addEventListener('click', () => {
-            if (window.geoMap) {
-                document.getElementById('cfg-station-name').value = window.geoMap.station.name;
-                document.getElementById('cfg-lat').value = window.geoMap.station.lat;
-                document.getElementById('cfg-lng').value = window.geoMap.station.lng;
-                document.getElementById('cfg-gmaps-key').value = window.geoMap.googleMapsApiKey || '';
-            }
-            if (window.iotService) {
-                document.getElementById('cfg-iot-endpoint').value = window.iotService.customEndpoint || '';
-            }
-            modalConfig.classList.remove('hidden');
-        });
-    }
-
-    const closeConfig = () => modalConfig && modalConfig.classList.add('hidden');
-    if (btnCloseConfig) btnCloseConfig.addEventListener('click', closeConfig);
-    if (btnCancelConfig) btnCancelConfig.addEventListener('click', closeConfig);
-
-    // Save Station Config Form (Supporting both comma ',' and dot '.')
-    if (formConfig) {
-        formConfig.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const name = document.getElementById('cfg-station-name').value.trim();
-            
-            // Normalize Indonesian comma decimal into standard dot decimal
-            const rawLat = document.getElementById('cfg-lat').value.trim().replace(',', '.');
-            const rawLng = document.getElementById('cfg-lng').value.trim().replace(',', '.');
-            const lat = parseFloat(rawLat);
-            const lng = parseFloat(rawLng);
-
-            if (isNaN(lat) || isNaN(lng)) {
-                alert('Format koordinat Latitude atau Longitude tidak valid. Masukkan angka seperti -6.2088 atau -5,4520');
-                return;
-            }
-
-            const gkey = document.getElementById('cfg-gmaps-key').value.trim();
-            const endpoint = document.getElementById('cfg-iot-endpoint').value.trim();
-            const autoSync = cfgAutoSyncEsp ? cfgAutoSyncEsp.checked : true;
-
-            localStorage.setItem('geoshield_auto_sync_esp', autoSync.toString());
-
-            if (window.geoMap) {
-                window.geoMap.googleMapsApiKey = gkey;
-                window.geoMap.updateStationLocation(lat, lng, name);
-            }
-            if (window.iotService) {
-                window.iotService.setCustomEndpoint(endpoint);
-            }
-
-            closeConfig();
-        });
-    }
-
-    // Geolocation API (Browser GPS)
-    if (btnGetCurrentLoc) {
-        btnGetCurrentLoc.addEventListener('click', () => {
-            if (!navigator.geolocation) {
-                alert('Browser Anda tidak mendukung geolokasi GPS.');
-                return;
-            }
-            btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mendeteksi GPS...';
-            navigator.geolocation.getCurrentPosition(
-                async (pos) => {
-                    btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-check text-success"></i> GPS Ditemukan!';
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    document.getElementById('cfg-lat').value = lat.toFixed(6);
-                    document.getElementById('cfg-lng').value = lng.toFixed(6);
-
-                    // Reverse geocode to suggest name
-                    if (window.geoMap) {
-                        try {
-                            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
-                            const res = await fetch(url, { headers: { 'Accept-Language': 'id,en' } });
-                            const data = await res.json();
-                            if (data && data.address) {
-                                const city = data.address.city || data.address.town || data.address.county || data.address.state || 'Posko Saya';
-                                document.getElementById('cfg-station-name').value = `Stasiun Sensor - ${city}`;
-                            }
-                        } catch(e) {}
-                    }
-
-                    setTimeout(() => {
-                        btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-location-crosshairs text-primary"></i> Gunakan GPS Saya';
-                    }, 2000);
-                },
-                (err) => {
-                    alert('Gagal mengambil lokasi GPS: ' + err.message);
-                    btnGetCurrentLoc.innerHTML = '<i class="fa-solid fa-location-crosshairs text-primary"></i> Gunakan GPS Saya';
-                }
-            );
-        });
-    }
-
-    // Manual Trigger: Pull & Sync Location from ESP32 Endpoint
-    if (btnSyncEspLocation) {
-        btnSyncEspLocation.addEventListener('click', async () => {
-            const endpoint = document.getElementById('cfg-iot-endpoint').value.trim();
-            btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menghubungi ESP32...';
-
-            if (endpoint && endpoint.startsWith('http')) {
-                try {
-                    const res = await fetch(endpoint);
-                    const data = await res.json();
-                    if (data && data.location) {
-                        document.getElementById('cfg-lat').value = data.location.lat;
-                        document.getElementById('cfg-lng').value = data.location.lng;
-                        if (data.station_name || data.station_id) {
-                            document.getElementById('cfg-station-name').value = data.station_name || `Stasiun ESP32 (${data.station_id})`;
-                        }
-                        btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-check text-success"></i> Berhasil Disinkronkan!';
-                    } else {
-                        throw new Error('Format response ESP32 tidak memiliki field location');
-                    }
-                } catch (err) {
-                    alert('Gagal mengambil lokasi dari endpoint ESP32: ' + err.message + '\nPastikan ESP32 satu jaringan WiFi dan endpoint aktif.');
-                    btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-microchip text-warning"></i> Kalibrasi dari ESP32';
-                }
+        if (speedArc) {
+            speedArc.style.strokeDashoffset = offset;
+            // Highlight red if exceeding danger limit (60)
+            if (clamped > 60) {
+                speedArc.style.stroke = '#EF4444';
             } else {
-                // If in demo simulator mode, simulate pulling from connected ESP32 node
-                setTimeout(() => {
-                    btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-check text-success"></i> Kalibrasi ESP32 OK!';
-                    document.getElementById('cfg-station-name').value = 'Stasiun ESP32 Posko Kalianda (Lampung)';
-                    document.getElementById('cfg-lat').value = '-5.452078';
-                    document.getElementById('cfg-lng').value = '105.395752';
-                    setTimeout(() => {
-                        btnSyncEspLocation.innerHTML = '<i class="fa-solid fa-microchip text-warning"></i> Kalibrasi dari ESP32';
-                    }, 2500);
-                }, 800);
+                speedArc.style.stroke = '#1A68FF';
             }
-        });
-    }
+        }
+        if (speedDisplay) speedDisplay.textContent = Math.round(clamped);
+        if (specSpeed) specSpeed.textContent = `${Math.round(clamped)} km/h`;
 
-    // Open/Close Hardware Modal
-    if (btnOpenHardware && modalHardware) {
-        btnOpenHardware.addEventListener('click', () => modalHardware.classList.remove('hidden'));
-    }
-    const closeHardware = () => modalHardware && modalHardware.classList.add('hidden');
-    if (btnCloseHardware) btnCloseHardware.addEventListener('click', closeHardware);
+        if (window.geoMap && window.geoMap.setSpeed) {
+            window.geoMap.setSpeed(Math.round(clamped));
+        }
+    };
 
-    // Hardware Modal Tabs
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabPanes = document.querySelectorAll('.tab-pane');
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetTab = btn.getAttribute('data-tab');
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabPanes.forEach(p => p.classList.remove('active'));
+    // Initial speed set to 48 (as in screenshot)
+    setSpeedometer(48);
 
-            btn.classList.add('active');
-            const activePane = document.getElementById(`pane-${targetTab}`);
-            if (activePane) activePane.classList.add('active');
-        });
+    // Dynamic subtle fluctuation to simulate real sensor tracking
+    setInterval(() => {
+        // Fluctuate gently between 45 and 52 km/h
+        const jitter = 48 + Math.round((Math.random() - 0.5) * 6);
+        setSpeedometer(jitter);
+    }, 4000);
+
+    // 3. PWA (Progressive Web App) Install Prompt Handler
+    let deferredPrompt = null;
+    const btnInstallPwa = document.getElementById('btn-install-pwa');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        if (btnInstallPwa) {
+            btnInstallPwa.classList.remove('hidden');
+        }
     });
 
-    // 4. View Mode Switcher (OpenStreetMap vs Live Telemetry Charts vs Split)
-    const tabViewBtns = document.querySelectorAll('.btn-tab-view');
-    const mainMapCard = document.getElementById('main-map-card');
-    const mainChartsCard = document.getElementById('main-charts-card');
-    const rightPanel = document.querySelector('.right-panel');
+    if (btnInstallPwa) {
+        btnInstallPwa.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`[PWA] User response to install prompt: ${outcome}`);
+                deferredPrompt = null;
+                btnInstallPwa.classList.add('hidden');
+            } else {
+                alert('Aplikasi sudah siap diinstall melalui menu titik tiga (Chrome/Edge) -> "Install Aplikasi".');
+            }
+        });
+    }
 
-    tabViewBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const view = btn.getAttribute('data-view');
-            tabViewBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+    // 4. Siren Audio & Alert Toggle
+    const btnToggleSound = document.getElementById('btn-toggle-sound');
+    const soundIcon = document.getElementById('sound-icon');
+    const alarmAudio = document.getElementById('alarm-sound');
+    let soundEnabled = true;
 
-            if (view === 'map') {
-                if (mainMapCard) mainMapCard.classList.remove('hidden');
-                if (mainChartsCard) mainChartsCard.classList.add('hidden');
-                if (rightPanel) rightPanel.classList.remove('split-view-active');
-                if (window.geoMap && window.geoMap.leafletMap) {
-                    setTimeout(() => window.geoMap.leafletMap.invalidateSize(), 150);
-                }
-            } else if (view === 'charts') {
-                if (mainMapCard) mainMapCard.classList.add('hidden');
-                if (mainChartsCard) mainChartsCard.classList.remove('hidden');
-                if (rightPanel) rightPanel.classList.remove('split-view-active');
-            } else if (view === 'split') {
-                if (mainMapCard) mainMapCard.classList.remove('hidden');
-                if (mainChartsCard) mainChartsCard.classList.remove('hidden');
-                if (rightPanel) rightPanel.classList.add('split-view-active');
-                if (window.geoMap && window.geoMap.leafletMap) {
-                    setTimeout(() => window.geoMap.leafletMap.invalidateSize(), 150);
+    if (btnToggleSound && soundIcon) {
+        btnToggleSound.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                soundIcon.className = 'fa-solid fa-volume-high';
+                btnToggleSound.title = 'Sirine Suara Aktif';
+            } else {
+                soundIcon.className = 'fa-solid fa-volume-xmark';
+                btnToggleSound.title = 'Sirine Dibisukan';
+                if (alarmAudio) {
+                    alarmAudio.pause();
+                    alarmAudio.currentTime = 0;
                 }
             }
+        });
+    }
+
+    // Dismiss Alert button
+    const btnDismissAlert = document.getElementById('btn-dismiss-alert');
+    const btnSilenceAlarm = document.getElementById('btn-silence-alarm');
+    const alertOverlay = document.getElementById('ews-alert-overlay');
+
+    if (btnDismissAlert && alertOverlay) {
+        btnDismissAlert.addEventListener('click', () => {
+            alertOverlay.classList.add('hidden');
+            if (alarmAudio) alarmAudio.pause();
+        });
+    }
+    if (btnSilenceAlarm && alarmAudio) {
+        btnSilenceAlarm.addEventListener('click', () => {
+            alarmAudio.pause();
+            alarmAudio.currentTime = 0;
+        });
+    }
+
+    // Helper Toast Notification
+    window.showToast = (msg, type = 'info') => {
+        const toast = document.createElement('div');
+        toast.className = `custom-toast toast-${type}`;
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0F172A;
+            color: #FFFFFF;
+            padding: 12px 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 99999;
+            animation: slideUp 0.3s ease-out;
+            border-left: 4px solid #10B981;
+        `;
+        toast.innerHTML = `<i class="fa-solid fa-circle-check text-success"></i> ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.5s ease';
+            setTimeout(() => toast.remove(), 500);
+        }, 3500);
+    };
+
+    // 5. Sidebar Nav Links Smooth Handling
+    const sidebarLinks = document.querySelectorAll('.sidebar-menu .menu-link');
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            if (link.id === 'sidebar-nav-bluetooth') return; // Handled by provisioning
+            sidebarLinks.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
         });
     });
 });

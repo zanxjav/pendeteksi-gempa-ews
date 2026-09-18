@@ -17,10 +17,10 @@ def dashboard_view(request):
     station, created = SensorStation.objects.get_or_create(
         station_id="ST-01-ESP32",
         defaults={
-            "name": "Stasiun Sensor 01 - Jakarta Pusat",
-            "latitude": -6.2088,
-            "longitude": 106.8456,
-            "description": "Stasiun Pemantau Gempa & Multi-Bencana Terpadu"
+            "name": "Stasiun EWS ITERA - ESP32 C3",
+            "latitude": -5.4267,
+            "longitude": 105.3179,
+            "description": "Stasiun Pemantau Gempa & EWS ITERA Lampung"
         }
     )
 
