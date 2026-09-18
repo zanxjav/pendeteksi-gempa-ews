@@ -184,6 +184,9 @@
 
                     <!-- Location Action Buttons -->
                     <div class="loc-actions-group">
+                        <button class="btn-green-pill" id="btn-use-my-gps" title="Gunakan GPS akurat perangkat Anda">
+                            <i class="fa-solid fa-crosshairs"></i> Deteksi Lokasi GPS Saya (Akurasi Real)
+                        </button>
                         <button class="btn-green-pill" id="btn-add-shelter">
                             <i class="fa-solid fa-location-dot"></i> Add Additional Location
                         </button>
@@ -214,7 +217,7 @@
                     <!-- Route Action Buttons -->
                     <div class="route-main-actions">
                         <button class="btn-route-primary" id="btn-get-directions">
-                            Get Directions (Kalkulasi Rute)
+                            Get Directions (Kalkulasi Rute Jalan Real)
                         </button>
                         <button class="btn-route-outline" id="btn-optimize-route">
                             Optimize Route (Hindari Zona Bahaya)
@@ -222,17 +225,19 @@
                     </div>
                 </div>
 
-                <!-- Section: Evacuation Route Summary Cards -->
+                <!-- Section: Evacuation Route Summary Cards with Google Maps Links -->
                 <div class="panel-section panel-routes-list">
                     <!-- Route 1 (Cyan) -->
                     <div class="route-card-item active" id="card-route-1">
                         <div class="route-badge-box badge-cyan">
                             <strong>ROUTE #1</strong>
-                            <small>(1 STOP) — Posko GOR</small>
+                            <small>(1 STOP) — Posko GOR ITERA</small>
                         </div>
                         <div class="route-metrics">
-                            <span class="r-dist">3.2 km — 6 mins</span>
-                            <span class="r-status-safe">ZONA AMAN 🟢</span>
+                            <span class="r-dist" id="r1-dist-text">3.2 km — 6 mins</span>
+                            <a href="https://www.google.com/maps/dir/?api=1&origin=-5.4267,105.3179&destination=-5.4050,105.3280&travelmode=driving" target="_blank" class="gmaps-direct-link" title="Buka di Google Maps Navigasi">
+                                <i class="fa-brands fa-google"></i> Google Maps <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            </a>
                         </div>
                         <div class="route-tools">
                             <i class="fa-solid fa-gear"></i>
@@ -247,8 +252,10 @@
                             <small>(1 STOP) — RSUD Airan</small>
                         </div>
                         <div class="route-metrics">
-                            <span class="r-dist">6.5 km — 14 mins</span>
-                            <span class="r-status-safe">RUTE ALTERNATIF 🟡</span>
+                            <span class="r-dist" id="r2-dist-text">6.5 km — 14 mins</span>
+                            <a href="https://www.google.com/maps/dir/?api=1&origin=-5.4267,105.3179&destination=-5.3920,105.3420&travelmode=driving" target="_blank" class="gmaps-direct-link" title="Buka di Google Maps Navigasi">
+                                <i class="fa-brands fa-google"></i> Google Maps <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            </a>
                         </div>
                         <div class="route-tools">
                             <i class="fa-solid fa-gear"></i>
@@ -263,8 +270,10 @@
                             <small>(1 STOP) — Way Huwi</small>
                         </div>
                         <div class="route-metrics">
-                            <span class="r-dist">8.1 km — 18 mins</span>
-                            <span class="r-status-safe">EVAKUASI CADANGAN 🟢</span>
+                            <span class="r-dist" id="r3-dist-text">8.1 km — 18 mins</span>
+                            <a href="https://www.google.com/maps/dir/?api=1&origin=-5.4267,105.3179&destination=-5.4120,105.3580&travelmode=driving" target="_blank" class="gmaps-direct-link" title="Buka di Google Maps Navigasi">
+                                <i class="fa-brands fa-google"></i> Google Maps <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            </a>
                         </div>
                         <div class="route-tools">
                             <i class="fa-solid fa-gear"></i>
@@ -272,6 +281,7 @@
                         </div>
                     </div>
                 </div>
+
 
             </div>
         </section>
@@ -286,10 +296,11 @@
                 <button class="map-zoom-btn" id="btn-zoom-out" title="Perkecil Peta"><i class="fa-solid fa-minus"></i></button>
             </div>
 
-            <!-- Bottom Left Google/Esri Attribution Stamp -->
+            <!-- Bottom Left Google Maps Attribution Stamp (Matching Screenshot) -->
             <div class="map-brand-stamp">
-                <span>GeoShield EWS GIS</span> &bull; <span>Esri World Imagery</span> &bull; <span>OpenStreetMap</span>
+                <i class="fa-brands fa-google text-cyan"></i> <strong>Google Maps</strong> &bull; <span>Imagery ©2026 Google</span> &bull; <span>OSRM Driving Routing</span>
             </div>
+
         </main>
 
         <!-- 2D. FLOATING ESP32 MULTI-SENSOR TELEMETRY HUD (Top-Right Collapsible) -->
