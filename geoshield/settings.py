@@ -112,6 +112,7 @@ REST_FRAMEWORK = {
 
 # Production Cloud Hosting Origins & Static Storage
 CSRF_TRUSTED_ORIGINS = [
+    'https://*.trycloudflare.com',
     'https://*.onrender.com',
     'https://*.railway.app',
     'https://*.vercel.app',

@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.sqlite3
 staticfiles/
+cloudflared.exe
 
 # Environment & IDE
 .env
