@@ -351,7 +351,7 @@ void calibrateMPU6050Baseline() {
   baseAccelY = sumY / SAMPLES;
   baseAccelZ = sumZ / SAMPLES;
 
-  Serial.println(String("✅ [MPU-6050] Kalibrasi Selesai. Baseline Z = ") + String(baseAccelZ, 4) + "g");
+  { char _buf[80]; snprintf(_buf, sizeof(_buf), "✅ [MPU-6050] Kalibrasi Selesai. Baseline Z = %.4fg", baseAccelZ); Serial.println(_buf); }
 }
 
 float readSeismicPga(float &outGal, String &outMmi, String &outDangerScale) {
@@ -571,21 +571,27 @@ void sendTelemetryHttp(float pga, float gal, String mmi, float waterLevel, int r
   http.addHeader("Content-Type", "application/json");
   http.setTimeout(3000);
 
-  String json = "{";
-  json += "\"station_id\":\"" + savedStationId + "\",";
-  json += "\"station_name\":\"" + savedStationName + "\",";
-  json += "\"location\":{\"lat\":" + String(savedLat, 6) + ",\"lng\":" + String(savedLng, 6) + ",\"elevation\":" + String(savedElevation, 1) + "},";
-  json += "\"seismic\":{\"pga\":" + String(pga, 4) + ",\"gal\":" + String(gal, 2) + ",\"mmi\":\"" + mmi + "\"},";
-  json += "\"flood\":{\"waterLevelCm\":" + String(waterLevel, 1) + "},";
-  json += "\"rain\":{\"rawAnalog\":" + String(rainRaw) + ",\"rateMmh\":" + String(rainRate, 1) + "},";
-  json += "\"water_quality\":{\"tds_ppm\":" + String(tds, 1) + ",\"ph\":" + String(ph, 1) + "}";
-  json += "}";
+  char jsonBuf[512];
+  snprintf(jsonBuf, sizeof(jsonBuf),
+    "{\"station_id\":\"%s\",\"station_name\":\"%s\","
+    "\"location\":{\"lat\":%.6f,\"lng\":%.6f,\"elevation\":%.1f},"
+    "\"seismic\":{\"pga\":%.4f,\"gal\":%.2f,\"mmi\":\"%s\"},"
+    "\"flood\":{\"waterLevelCm\":%.1f},"
+    "\"rain\":{\"rawAnalog\":%d,\"rateMmh\":%.1f},"
+    "\"water_quality\":{\"tds_ppm\":%.1f,\"ph\":%.1f}}",
+    savedStationId.c_str(), savedStationName.c_str(),
+    savedLat, savedLng, savedElevation,
+    pga, gal, mmi.c_str(),
+    waterLevel,
+    rainRaw, rainRate,
+    tds, ph);
+  String json = String(jsonBuf);
 
   int code = http.POST(json);
   if (code == HTTP_CODE_OK || code == HTTP_CODE_CREATED) {
     Serial.println("📡 [TELEMETRY] Data Berhasil Terkirim ke Web GIS Monitoring!");
   } else {
-    Serial.println("⚠️ [TELEMETRY ERROR] HTTP Status: " + String(code));
+    Serial.print("⚠️ [TELEMETRY ERROR] HTTP Status: "); Serial.println(code);
   }
   http.end();
 }
@@ -616,9 +622,9 @@ void startWifi() {
     String currentSsid = getActiveSSID();
     String currentPass = getActivePass();
 
-    Serial.println("\n[WIFI] Menghubungkan ke: " + currentSsid);
+    Serial.print("\n[WIFI] Menghubungkan ke: "); Serial.println(currentSsid);
     if (isBluetoothActive) {
-        HC06.println("\n[WIFI] Menghubungkan ke: " + currentSsid);
+        HC06.print("\n[WIFI] Menghubungkan ke: "); HC06.println(currentSsid);
     }
 
     WiFi.disconnect(true);
@@ -665,7 +671,7 @@ void updateWifi() {
                 wifiAttempt = 0;
 
                 if (isBluetoothActive) {
-                    HC06.println("\n✅ [WIFI] TERHUBUNG! IP: " + WiFi.localIP().toString());
+                    HC06.print("\n✅ [WIFI] TERHUBUNG! IP: "); HC06.println(WiFi.localIP().toString());
                 }
 
                 if (lcdAvailable) {
@@ -683,9 +689,9 @@ void updateWifi() {
                 }
 
                 if (millis() - wifiStart > 10000) {
-                    Serial.println("\n[WIFI] Gagal/Timeout: " + wifiStatus(status));
+                    Serial.print("\n[WIFI] Gagal/Timeout: "); Serial.println(wifiStatus(status));
                     if (isBluetoothActive) {
-                        HC06.println("\n[WIFI] Gagal/Timeout: " + wifiStatus(status));
+                        HC06.print("\n[WIFI] Gagal/Timeout: "); HC06.println(wifiStatus(status));
                     }
                     WiFi.disconnect(true);
                     wifiState = WIFI_IDLE;
@@ -779,13 +785,13 @@ void processCommand(String input) {
         ESP.restart();
       } else if (lower == "status" || lower == "2") {
         printlnBoth("\r\n📊 STATUS SISTEM ESP32-C3:");
-        printlnBoth(String("   • WiFi SSID  : ") + getActiveSSID());
-        printlnBoth(String("   • WiFi State : ") + wifiStatus(WiFi.status()));
-        printlnBoth(String("   • IP Address : ") + (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String("Offline")));
-        printlnBoth(String("   • Posko      : ") + savedStationName + " (" + String(savedElevation) + " mdpl)");
-        printlnBoth(String("   • Endpoint   : ") + savedServerUrl);
+        printBoth("   • WiFi SSID  : "); printlnBoth(getActiveSSID());
+        printBoth("   • WiFi State : "); printlnBoth(wifiStatus(WiFi.status()));
+        printBoth("   • IP Address : "); printlnBoth(WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Offline");
+        { char _sb[80]; snprintf(_sb, sizeof(_sb), "   • Posko      : %s (%.0f mdpl)", savedStationName.c_str(), savedElevation); printlnBoth(_sb); }
+        printBoth("   • Endpoint   : "); printlnBoth(savedServerUrl);
       } else {
-        printlnBoth(String("\r\n[?] Perintah diterima: \"") + input + "\"");
+        printBoth("\r\n[?] Perintah diterima: \""); printBoth(input); printlnBoth("\"");
         printlnBoth("💡 Ketik 'set:NamaWiFi,Password' atau 'menu' untuk mengatur WiFi.\r\n");
       }
       break;
@@ -798,7 +804,7 @@ void processCommand(String input) {
         printBoth("SSID -> ");
       } else if (input == "2") {
         currentState = STATE_NORMAL;
-        printlnBoth(String("\r\n📊 Status WiFi: ") + String(WiFi.status() == WL_CONNECTED ? "TERHUBUNG 🟢" : "OFFLINE 🔴") + " (" + wifiStatus(WiFi.status()) + ")");
+        { char _wb[80]; snprintf(_wb, sizeof(_wb), "\r\n📊 Status WiFi: %s (%s)", (WiFi.status() == WL_CONNECTED ? "TERHUBUNG" : "OFFLINE"), wifiStatus(WiFi.status()).c_str()); printlnBoth(_wb); }
       } else if (input == "3") {
         preferences.begin("geoshield-cfg", false);
         preferences.clear();
@@ -819,7 +825,7 @@ void processCommand(String input) {
       String tempSSID = cleanString(input);
       pendingSSID = tempSSID;
       currentState = STATE_INPUT_PASS;
-      printlnBoth(String("\r\n✅ SSID: \"") + tempSSID + "\"");
+      printBoth("\r\n✅ SSID: \""); printBoth(tempSSID); printlnBoth("\"");
       printlnBoth("Masukkan Password WiFi (Ketik 'none' jika tanpa sandi):");
       printBoth("Password -> ");
       break;
@@ -838,9 +844,9 @@ void processCommand(String input) {
 void saveAndRestart(String ssid, String pass) {
   printlnBoth("\r\n==========================================");
   printlnBoth("💾 MENYIMPAN KREDENSIAL WIFI KE FLASH NVS:");
-  printlnBoth(String("   • SSID     : [") + ssid + "]");
+  printBoth("   • SSID     : ["); printBoth(ssid); printlnBoth("]");
   printBoth("   • Password : ");
-  printlnBoth(pass.length() > 0 ? "********" : "[Tanpa Sandi]");
+  if (pass.length() > 0) { printlnBoth("********"); } else { printlnBoth("[Tanpa Sandi]"); }
   printlnBoth("==========================================");
 
   preferences.begin("geoshield-cfg", false);
