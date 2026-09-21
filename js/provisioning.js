@@ -87,6 +87,19 @@ class ESPProvisioningManager {
             });
         }
 
+        // Quick Action Buttons
+        const quickScan = document.getElementById('btn-quick-scan');
+        if (quickScan) quickScan.addEventListener('click', () => this.sendCommand('scan wifi'));
+
+        const quickInput = document.getElementById('btn-quick-input');
+        if (quickInput) quickInput.addEventListener('click', () => this.sendCommand('masukan wifi'));
+
+        const quickStatus = document.getElementById('btn-quick-status');
+        if (quickStatus) quickStatus.addEventListener('click', () => this.sendCommand('status'));
+
+        const quickClear = document.getElementById('btn-quick-clear');
+        if (quickClear) quickClear.addEventListener('click', () => this.sendCommand('hapus wifi'));
+
         // 6. Masuk ke Dashboard (Hanya aktif setelah ESP32 terhubung)
         if (this.btnEnterDashboard) {
             this.btnEnterDashboard.addEventListener('click', () => {
@@ -134,7 +147,7 @@ class ESPProvisioningManager {
     // ==========================================================================
     async connectSerial() {
         if (!('serial' in navigator)) {
-            this.logTerminal('Browser Anda tidak mendukung Web Serial API. Gunakan Google Chrome, Microsoft Edge, atau Opera di Laptop/PC.', 'warn');
+            this.logTerminal('Browser Anda tidak mendukung Web Serial API. Gunakan Google Chrome atau Microsoft Edge di Laptop/PC.', 'warn');
             return;
         }
 
@@ -164,15 +177,16 @@ class ESPProvisioningManager {
             this.serialOutputDone = textEncoder.readable.pipeTo(this.serialPort.writable);
             this.serialWriter = textEncoder.writable.getWriter();
 
+            // Tampilkan status & menu
             this.readSerialLoop();
-
-            // Kirim ping awal untuk melihat respon ESP32
-            this.sendRaw('status\r\n');
+            setTimeout(() => {
+                this.sendRaw('status\r\n');
+            }, 600);
 
         } catch (err) {
-            console.error('Serial Error:', err);
-            this.setStatus('Gagal Terhubung', 'warning');
-            this.logTerminal(`Gagal menghubungkan Serial: ${err.message}`, 'error');
+            if (err.name !== 'NotFoundError') {
+                this.logTerminal(`Gagal membuka port serial: ${err.message}`, 'error');
+            }
         }
     }
 
@@ -195,33 +209,60 @@ class ESPProvisioningManager {
     // ==========================================================================
     async connectBluetooth() {
         if (!navigator.bluetooth) {
-            this.logTerminal('Browser Anda tidak mendukung Web Bluetooth API. Gunakan Chrome di Android atau aktifkan via Web Serial COM di laptop.', 'warn');
+            this.logTerminal('Browser Anda tidak mendukung Web Bluetooth API. Gunakan Chrome di Android atau gunakan Serial COM di Windows.', 'warn');
             return;
         }
 
         try {
-            this.logTerminal('Mencari perangkat Bluetooth di sekitar...', 'info');
-            this.setStatus('Scanning Bluetooth...', 'warning');
+            this.logTerminal('Mencari perangkat Bluetooth dengan nama HC-06 / ESP32...', 'info');
+            this.setStatus('Scanning Bluetooth HC-06...', 'warning');
 
-            const device = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: [
-                    '00001101-0000-1000-8000-00805f9b34fb', // Serial Port Profile (SPP)
-                    '0000ffe0-0000-1000-8000-00805f9b34fb', // HC-06 BLE Service
-                    '6e400001-b5a3-f393-e0a9-e50e24dcca9e'  // Nordic UART
-                ]
-            });
+            let device;
+            try {
+                // Prioritas: cari dengan filter nama perangkat (HC-06 / ESP) agar namanya muncul, bukan ID acak!
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { namePrefix: 'HC' },
+                        { namePrefix: 'hc' },
+                        { namePrefix: 'ESP' },
+                        { namePrefix: 'esp' },
+                        { name: 'HC-06' },
+                        { name: 'HC06' },
+                        { name: 'HC-05' }
+                    ],
+                    optionalServices: [
+                        '00001101-0000-1000-8000-00805f9b34fb', // Serial Port Profile (SPP)
+                        '0000ffe0-0000-1000-8000-00805f9b34fb', // HC-06 BLE Service
+                        '6e400001-b5a3-f393-e0a9-e50e24dcca9e'  // Nordic UART
+                    ]
+                });
+            } catch (filterErr) {
+                if (filterErr.name === 'NotFoundError') {
+                    // Fallback jika nama tidak cocok dengan filter
+                    this.logTerminal('Membuka dialog pencarian semua perangkat Bluetooth...', 'warn');
+                    device = await navigator.bluetooth.requestDevice({
+                        acceptAllDevices: true,
+                        optionalServices: [
+                            '00001101-0000-1000-8000-00805f9b34fb',
+                            '0000ffe0-0000-1000-8000-00805f9b34fb',
+                            '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
+                        ]
+                    });
+                } else {
+                    throw filterErr;
+                }
+            }
 
             this.bluetoothDevice = device;
-            const deviceName = device.name || 'Perangkat Bluetooth (HC-06)';
-            this.logTerminal(`Perangkat Dipilih: <strong>${deviceName}</strong> (ID: ${device.id})`, 'info');
+            const deviceName = device.name || 'Perangkat HC-06';
+            this.logTerminal(`Perangkat Dipilih: <strong>${deviceName}</strong>`, 'info');
 
             const server = await device.gatt.connect();
             this.bluetoothServer = server;
             this.isConnected = true;
             this.connectionType = 'bluetooth';
             this.setStatus(`Terhubung: ${deviceName}`, 'success');
-            this.logTerminal('Koneksi Bluetooth Berhasil!', 'success');
+            this.logTerminal(`Koneksi Bluetooth ke ${deviceName} Berhasil!`, 'success');
 
             if (this.btnConnectSerial) this.btnConnectSerial.classList.add('hidden');
             if (this.btnConnectBt) this.btnConnectBt.classList.add('hidden');

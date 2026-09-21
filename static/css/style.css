@@ -941,15 +941,53 @@ body.gis-body {
     font-size: 14px;
 }
 
+.terminal-quick-cmds {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #0B132B;
+    border-top: 1px solid var(--border-main);
+    border-bottom: 1px solid var(--border-main);
+    overflow-x: auto;
+}
+
+.terminal-quick-cmds .quick-title {
+    font-size: 10px;
+    color: #94A3B8;
+    text-transform: uppercase;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.btn-quick {
+    background: #1E293B;
+    color: #38BDF8;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.btn-quick:hover {
+    background: #38BDF8;
+    color: #0B132B;
+    border-color: #38BDF8;
+}
+
 #prov-terminal-cmd-input {
     flex: 1;
     background: #0B132B;
-    border: 1px solid var(--border-main);
+    border: 1px solid #334155;
     border-radius: 6px;
-    color: #FFFFFF;
+    color: #38BDF8;
     font-family: var(--font-mono);
-    font-size: 11px;
-    padding: 8px 10px;
+    font-size: 12px;
+    padding: 8px 12px;
     outline: none;
 }
 

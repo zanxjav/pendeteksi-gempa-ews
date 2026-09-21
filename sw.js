@@ -1,4 +1,4 @@
-// GeoShield EWS - Cache Buster Service Worker
+// GeoShield EWS - Root Service Worker Cache Buster
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
@@ -13,6 +13,5 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Always fetch fresh from network
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });

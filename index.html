@@ -23,8 +23,25 @@
     <!-- Font Awesome Icons 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <!-- Custom GIS Theme Stylesheet -->
-    <link rel="stylesheet" href="static/css/style.css">
+    <!-- Custom GIS Theme Stylesheet with Cache Buster -->
+    <link rel="stylesheet" href="static/css/style.css?v=20260921_05">
+
+    <!-- Anti-Cache & Service Worker Destroyer -->
+    <script>
+        // Paksa bersihkan semua cache lama dan unregister service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    </script>
 </head>
 <body class="gis-body">
 
@@ -51,17 +68,20 @@
                                 <h3><i class="fa-solid fa-tower-cell"></i> 1. Sambungkan Hardware ESP32</h3>
                                 <span id="prov-status-indicator" class="status-pill warning">Belum Terhubung</span>
                             </div>
-                            <p class="prov-help-text">Hubungkan ke modul Bluetooth HC-06 atau Serial Port ESP32:</p>
+                            <p class="prov-help-text">Hubungkan ke modul Bluetooth HC-06 atau Serial COM:</p>
                             <div class="prov-btn-group">
                                 <button id="btn-connect-serial" class="btn btn-primary btn-block">
-                                    <i class="fa-solid fa-plug"></i> Hubungkan Serial / Bluetooth COM (HC-06)
+                                    <i class="fa-solid fa-plug"></i> 🔌 Hubungkan Serial COM (HC-06 / USB)
                                 </button>
                                 <button id="btn-connect-bt" class="btn btn-bluetooth btn-block mt-2">
-                                    <i class="fa-brands fa-bluetooth-b"></i> Scan Bluetooth Wireless (HC-06)
+                                    <i class="fa-brands fa-bluetooth-b"></i> 📶 Scan Bluetooth HC-06 (Filter Nama)
                                 </button>
                                 <button id="btn-disconnect-comm" class="btn btn-outline-danger btn-block mt-2 hidden">
                                     <i class="fa-solid fa-link-slash"></i> Putuskan Sambungan
                                 </button>
+                            </div>
+                            <div class="mt-2 text-muted" style="font-size: 11px; line-height: 1.4;">
+                                💡 <em>Saran Windows: Klik <strong>Hubungkan Serial COM</strong> setelah pairing HC-06 di Windows Settings (PIN: 1234).</em>
                             </div>
                         </div>
 
@@ -95,18 +115,29 @@
                                 </div>
                                 <span class="terminal-title">Terminal Serial &amp; Bluetooth HC-06 (9600 Baud)</span>
                             </div>
+
+                            <!-- PINTASAN CEPAT PERINTAH FIRMWARE -->
+                            <div class="terminal-quick-cmds">
+                                <span class="quick-title">Pintasan:</span>
+                                <button type="button" id="btn-quick-scan" class="btn-quick"><i class="fa-solid fa-satellite-dish"></i> scan wifi</button>
+                                <button type="button" id="btn-quick-input" class="btn-quick"><i class="fa-solid fa-keyboard"></i> masukan wifi</button>
+                                <button type="button" id="btn-quick-status" class="btn-quick"><i class="fa-solid fa-circle-info"></i> status</button>
+                                <button type="button" id="btn-quick-clear" class="btn-quick"><i class="fa-solid fa-trash-can"></i> hapus wifi</button>
+                            </div>
+
                             <div id="prov-terminal-output" class="terminal-body">
                                 <div class="terminal-line line-info">[GATEWAY] Silakan sambungkan ESP32 / HC-06 via Serial COM atau Bluetooth.</div>
-                                <div class="terminal-line line-muted">[PETUNJUK] Anda dapat mengetik perintah langsung di kolom input bawah:</div>
-                                <div class="terminal-line line-muted">• set:NamaWiFi,Password &rarr; untuk setting WiFi</div>
-                                <div class="terminal-line line-muted">• status &rarr; untuk melihat status koneksi</div>
-                                <div class="terminal-line line-muted">• clear &rarr; untuk mereset kredensial WiFi</div>
+                                <div class="terminal-line line-muted">[PETUNJUK KONSOL ESP32-C3]:</div>
+                                <div class="terminal-line line-muted">• Ketik 'masukan wifi' &rarr; untuk input SSID &amp; Password bertahap</div>
+                                <div class="terminal-line line-muted">• Ketik 'scan wifi' &rarr; untuk melihat WiFi sekitar ESP32</div>
+                                <div class="terminal-line line-muted">• Ketik 'status' &rarr; untuk cek status koneksi</div>
+                                <div class="terminal-line line-muted">• Atau langsung ketik format 'set:NamaWiFi,Password'</div>
                             </div>
 
                             <!-- REAL COMMAND INPUT BAR -->
                             <div class="terminal-input-bar">
-                                <span class="terminal-prompt">&gt;</span>
-                                <input type="text" id="prov-terminal-cmd-input" placeholder="Ketik perintah (contoh: set:WiFiKu,Sandi atau status)..." autocomplete="off">
+                                <span class="terminal-prompt">ESP32&gt;</span>
+                                <input type="text" id="prov-terminal-cmd-input" placeholder="Ketik 'masukan wifi' atau 'scan wifi' lalu tekan Enter..." autocomplete="off">
                                 <button id="btn-terminal-send" class="btn btn-sm btn-primary">
                                     <i class="fa-solid fa-paper-plane"></i> Kirim
                                 </button>
@@ -440,20 +471,9 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
-    <!-- Application Scripts -->
-    <script src="static/js/provisioning.js"></script>
-    <script src="static/js/map.js"></script>
-    <script src="static/js/app.js"></script>
-
-    <!-- PWA Service Worker Registration -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('static/sw.js')
-                    .then(reg => console.log('[PWA] ServiceWorker registered', reg.scope))
-                    .catch(err => console.warn('[PWA] ServiceWorker failed', err));
-            });
-        }
-    </script>
+    <!-- Application Scripts with Cache Buster -->
+    <script src="static/js/provisioning.js?v=20260921_05"></script>
+    <script src="static/js/map.js?v=20260921_05"></script>
+    <script src="static/js/app.js?v=20260921_05"></script>
 </body>
 </html>
