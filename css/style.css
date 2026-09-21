@@ -921,24 +921,65 @@ body.gis-body {
     max-height: 240px;
 }
 
-.terminal-footer { padding: 10px 12px; background: #0F172A; }
+.terminal-footer { padding: 10px 12px; background: #0F172A; text-align: center; }
 
-.btn-text-skip {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    color: #E2E8F0;
-    padding: 5px 12px;
-    border-radius: 6px;
-    font-size: 11px;
-    cursor: pointer;
+/* Real Command Input Bar */
+.terminal-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #0F172A;
+    border-top: 1px solid var(--border-main);
+    border-bottom: 1px solid var(--border-main);
 }
 
-.btn-icon-close {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    font-size: 18px;
-    cursor: pointer;
+.terminal-prompt {
+    color: #10B981;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 14px;
+}
+
+#prov-terminal-cmd-input {
+    flex: 1;
+    background: #0B132B;
+    border: 1px solid var(--border-main);
+    border-radius: 6px;
+    color: #FFFFFF;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 8px 10px;
+    outline: none;
+}
+
+#prov-terminal-cmd-input:focus {
+    border-color: #38BDF8;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 11px;
+}
+
+.gateway-lock-text {
+    font-size: 11px;
+    color: #94A3B8;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.pulse-glow {
+    animation: pulseGlow 1.5s infinite;
+}
+
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
 .hidden { display: none !important; }

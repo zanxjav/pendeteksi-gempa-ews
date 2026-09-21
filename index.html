@@ -28,26 +28,18 @@
 </head>
 <body class="gis-body">
 
-    <!-- GATEWAY: SETUP WIFI ESP32 VIA BLUETOOTH / AP (MODAL) -->
-    <div id="provisioning-modal" class="prov-modal-overlay" aria-hidden="true">
+    <!-- GATEWAY: MANDATORY LOGIN & SETUP WIFI ESP32 (TIDAK BISA DILEWATI) -->
+    <div id="provisioning-modal" class="prov-modal-overlay active" aria-hidden="false">
         <div class="prov-modal-dialog">
             <div class="prov-modal-header">
                 <div class="prov-header-title">
                     <div class="prov-icon-glow">
-                        <i class="fa-brands fa-bluetooth-b"></i>
+                        <i class="fa-solid fa-shield-halved"></i>
                     </div>
                     <div>
-                        <h2>Setup WiFi ESP32 via Bluetooth / AP</h2>
-                        <p>Konfigurasi koneksi internet ESP32 sebelum masuk ke menu utama dashboard</p>
+                        <h2>🔒 GATEWAY LOGIN &amp; KONEKSI ESP32-C3</h2>
+                        <p>Pastikan ESP32 terhubung ke WiFi terlebih dahulu sebelum membuka Dashboard Utama</p>
                     </div>
-                </div>
-                <div class="prov-header-actions">
-                    <button id="btn-skip-provisioning" class="btn-text-skip">
-                        Lewati / Langsung Masuk <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                    <button id="btn-close-provisioning" class="btn-icon-close">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
                 </div>
             </div>
 
@@ -56,38 +48,38 @@
                     <div class="prov-form-col">
                         <div class="prov-card-inner">
                             <div class="prov-section-header">
-                                <h3><i class="fa-solid fa-tower-cell"></i> 1. Koneksi Bluetooth HC-06</h3>
-                                <span id="prov-status-indicator" class="status-pill warning">Siap Pairing</span>
+                                <h3><i class="fa-solid fa-tower-cell"></i> 1. Sambungkan Hardware ESP32</h3>
+                                <span id="prov-status-indicator" class="status-pill warning">Belum Terhubung</span>
                             </div>
-                            <p class="prov-help-text">Hubungkan ke modul HC-06 ESP32-C3 untuk mengatur WiFi stasiun.</p>
+                            <p class="prov-help-text">Hubungkan ke modul Bluetooth HC-06 atau Serial Port ESP32:</p>
                             <div class="prov-btn-group">
-                                <button id="btn-connect-bt" class="btn btn-bluetooth">
-                                    <i class="fa-brands fa-bluetooth-b"></i> Scan & Hubungkan HC-06
+                                <button id="btn-connect-serial" class="btn btn-primary btn-block">
+                                    <i class="fa-solid fa-plug"></i> Hubungkan Serial / Bluetooth COM (HC-06)
                                 </button>
-                                <button id="btn-disconnect-bt" class="btn btn-outline-danger hidden">
-                                    <i class="fa-solid fa-link-slash"></i> Putuskan
+                                <button id="btn-connect-bt" class="btn btn-bluetooth btn-block mt-2">
+                                    <i class="fa-brands fa-bluetooth-b"></i> Scan Bluetooth Wireless (HC-06)
                                 </button>
-                                <button id="btn-simulate-esp" class="btn btn-outline-secondary">
-                                    <i class="fa-solid fa-play"></i> Mode Simulasi Demo
+                                <button id="btn-disconnect-comm" class="btn btn-outline-danger btn-block mt-2 hidden">
+                                    <i class="fa-solid fa-link-slash"></i> Putuskan Sambungan
                                 </button>
                             </div>
                         </div>
 
                         <div class="prov-card-inner mt-3">
                             <div class="prov-section-header">
-                                <h3><i class="fa-solid fa-wifi"></i> 2. Kredensial WiFi</h3>
+                                <h3><i class="fa-solid fa-wifi"></i> 2. Kredensial WiFi Target</h3>
                             </div>
                             <div class="prov-form-group">
                                 <label for="prov-wifi-ssid">Nama WiFi (SSID):</label>
-                                <input type="text" id="prov-wifi-ssid" class="input-dark" placeholder="Contoh: ITERA-WiFi" value="ITERA-WiFi">
+                                <input type="text" id="prov-wifi-ssid" class="input-dark" placeholder="Masukkan SSID WiFi..." required>
                             </div>
                             <div class="prov-form-group mt-2">
                                 <label for="prov-wifi-pass">Password WiFi:</label>
-                                <input type="password" id="prov-wifi-pass" class="input-dark" placeholder="Kata sandi WiFi" value="itera12345">
+                                <input type="password" id="prov-wifi-pass" class="input-dark" placeholder="Kosongkan jika tanpa password">
                             </div>
                             <div class="prov-actions mt-3">
-                                <button id="btn-send-wifi-config" class="btn btn-primary btn-block">
-                                    <i class="fa-solid fa-paper-plane"></i> Kirim ke ESP32 & Restart
+                                <button id="btn-send-wifi-config" class="btn btn-success btn-block">
+                                    <i class="fa-solid fa-paper-plane"></i> Kirim ke ESP32 &amp; Sambungkan
                                 </button>
                             </div>
                         </div>
@@ -101,17 +93,32 @@
                                     <span class="dot dot-yellow"></span>
                                     <span class="dot dot-green"></span>
                                 </div>
-                                <span class="terminal-title">Konsol UART ESP32-C3 (9600 Baud)</span>
+                                <span class="terminal-title">Terminal Serial &amp; Bluetooth HC-06 (9600 Baud)</span>
                             </div>
                             <div id="prov-terminal-output" class="terminal-body">
-                                <div class="terminal-line line-info">[BOOT] ESP32-C3 Disaster Station Ready.</div>
-                                <div class="terminal-line line-muted">[INFO] MPU-6050 Deadband Filter Aktif.</div>
-                                <div class="terminal-line line-rx">[BLUETOOTH] Menunggu pengiriman kredensial WiFi...</div>
+                                <div class="terminal-line line-info">[GATEWAY] Silakan sambungkan ESP32 / HC-06 via Serial COM atau Bluetooth.</div>
+                                <div class="terminal-line line-muted">[PETUNJUK] Anda dapat mengetik perintah langsung di kolom input bawah:</div>
+                                <div class="terminal-line line-muted">• set:NamaWiFi,Password &rarr; untuk setting WiFi</div>
+                                <div class="terminal-line line-muted">• status &rarr; untuk melihat status koneksi</div>
+                                <div class="terminal-line line-muted">• clear &rarr; untuk mereset kredensial WiFi</div>
                             </div>
+
+                            <!-- REAL COMMAND INPUT BAR -->
+                            <div class="terminal-input-bar">
+                                <span class="terminal-prompt">&gt;</span>
+                                <input type="text" id="prov-terminal-cmd-input" placeholder="Ketik perintah (contoh: set:WiFiKu,Sandi atau status)..." autocomplete="off">
+                                <button id="btn-terminal-send" class="btn btn-sm btn-primary">
+                                    <i class="fa-solid fa-paper-plane"></i> Kirim
+                                </button>
+                            </div>
+
                             <div class="terminal-footer">
                                 <button id="btn-enter-dashboard" class="btn btn-success btn-block hidden">
-                                    <i class="fa-solid fa-gauge-high"></i> Sukses! Buka Dashboard GIS
+                                    <i class="fa-solid fa-gauge-high"></i> ESP32 Terhubung! Masuk ke Dashboard GIS &rarr;
                                 </button>
+                                <div id="gateway-lock-notice" class="gateway-lock-text">
+                                    <i class="fa-solid fa-lock"></i> Dashboard terkunci hingga ESP32 terhubung ke WiFi.
+                                </div>
                             </div>
                         </div>
                     </div>
