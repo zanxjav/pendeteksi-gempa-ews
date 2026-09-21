@@ -80,18 +80,38 @@ const float THRESHOLD_WATER_DANGER    = 150.0; // cm
 const float DISTANCE_TO_RIVER_BED_CM  = 200.0; // Tinggi sensor ke dasar saluran
 
 // ==============================================================================
-// 5. FLASH PREFERENCES (NVS PERSISTENT STORAGE)
+// 5. FLASH PREFERENCES (NVS PERSISTENT STORAGE) & CREDENTIALS
 // ==============================================================================
 Preferences preferences;
 
+// Kredensial WiFi Default (Bisa diganti dinamis via Bluetooth HC-06 & Flash NVS)
+const char* default_ssid     = "GALAXY A33 5G";
+const char* default_password = "cicing77";
+
 String savedSSID       = "";
 String savedPass       = "";
+String pendingSSID     = "";
 String savedServerUrl  = "http://10.11.207.118:8000/api/telemetry/";
 String savedStationId  = "EWS-BDL-01";
 String savedStationName= "Posko EWS ITERA - Bandar Lampung";
 float  savedLat        = -5.4267;
 float  savedLng        = 105.3179;
 float  savedElevation  = 124.0; // mdpl (Meter Diatas Permukaan Laut)
+
+// ==============================================================================
+// 6. WIFI STATE MANAGEMENT (SISTEM NON-BLOCKING DENGAN BROWNOUT-PROTECTION 11dBm)
+// ==============================================================================
+enum WifiState {
+    WIFI_IDLE,
+    WIFI_CONNECTING,
+    WIFI_CONNECTED
+};
+
+WifiState wifiState = WIFI_IDLE;
+unsigned long wifiStart = 0;
+unsigned long wifiRetry = 0;
+unsigned long dotTimer  = 0;
+int wifiAttempt = 0;
 
 // State Machine Setup WiFi via Bluetooth
 enum SetupState {
@@ -115,7 +135,11 @@ void printlnBoth(String msg);
 String cleanString(String raw);
 void showMainMenu();
 void processCommand(String input);
-bool tryConnectSavedWiFi();
+String wifiStatus(wl_status_t s);
+String getActiveSSID();
+String getActivePass();
+void startWifi();
+void updateWifi();
 void saveAndRestart(String ssid, String pass);
 void initSensors();
 void initMPU6050();
@@ -139,6 +163,7 @@ void setup() {
   Serial.println("🌋 GEOSHIELD EWS - ESP32-C3 BANDAR LAMPUNG EDITION");
   Serial.println("   MPU-6050 Seismik + TDS & pH + Rain + Water Level");
   Serial.println("   Bluetooth HC-06 Auto-Provisioning & LCD I2C 16x2");
+  Serial.println("   Non-Blocking State-Machine WiFi (11dBm TX Power)");
   Serial.println("==================================================\n");
 
   // Inisialisasi I2C Bus ESP32-C3 (SDA=8, SCL=9)
@@ -188,49 +213,11 @@ void setup() {
   // Kalibrasi MPU6050 saat posisi diam (Baseline)
   calibrateMPU6050Baseline();
 
-  // Coba hubungkan ke WiFi tersimpan
-  if (savedSSID.length() > 0) {
-    Serial.println("[BOOT] Menghubungkan ke WiFi tersimpan: \"" + savedSSID + "\"...");
-    if (lcdAvailable) {
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Konek WiFi:");
-      lcd.setCursor(0, 1);
-      lcd.print(savedSSID.substring(0, 16));
-    }
+  // Inisialisasi WiFi State Machine Non-Blocking
+  wifiRetry = millis() - 2000;
+  wifiState = WIFI_IDLE;
 
-    bool connected = tryConnectSavedWiFi();
-
-    if (connected) {
-      Serial.println("\n==================================================");
-      Serial.println("✅ [SUKSES] ESP32 TERHUBUNG KE WIFI!");
-      Serial.println("   • SSID       : " + WiFi.SSID());
-      Serial.println("   • IP Address : " + WiFi.localIP().toString());
-      Serial.println("   • RSSI       : " + String(WiFi.RSSI()) + " dBm");
-      Serial.println("==================================================\n");
-
-      if (lcdAvailable) {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("WiFi Terhubung!");
-        lcd.setCursor(0, 1);
-        lcd.print(WiFi.localIP().toString());
-        delay(1500);
-      }
-
-      // Bluetooth dimatikan untuk hemat daya & kestabilan RF
-      stopBluetooth();
-      return;
-    } else {
-      Serial.println("\n❌ [GAGAL] Tidak dapat terhubung ke WiFi tersimpan.");
-      Serial.println("[INFO] Mengaktifkan Bluetooth HC-06 untuk konfigurasi...\n");
-    }
-  } else {
-    Serial.println("[BOOT] Belum ada konfigurasi WiFi tersimpan.");
-    Serial.println("[INFO] Mengaktifkan Bluetooth HC-06...\n");
-  }
-
-  // Jika belum terkoneksi, aktifkan Bluetooth HC-06
+  // Aktifkan Bluetooth HC-06 sebagai Access Point Provisioning Gateway
   startBluetooth();
 }
 
@@ -241,7 +228,10 @@ unsigned long lastTelemetryTime = 0;
 const unsigned long TELEMETRY_INTERVAL_MS = 1000; // Kirim tiap 1 detik
 
 void loop() {
-  // 1. Baca Sensor Seismik & Fisik Secara Real-Time
+  // 1. Update State Machine WiFi secara non-blocking
+  updateWifi();
+
+  // 2. Baca Sensor Seismik & Fisik Secara Real-Time
   float gal = 0.0;
   String mmi = "I (Tidak Terasa)";
   String dangerScale = "AMAN";
@@ -258,26 +248,21 @@ void loop() {
   String waterQuality = "Air Bersih";
   float tdsPpm = readTdsPpm(ph, waterQuality);
 
-  // 2. Evaluasi Alarm Darurat Lokal (Buzzer & LED)
+  // 3. Evaluasi Alarm Darurat Lokal (Buzzer & LED)
   checkEmergencyAlert(pga, waterLevel);
 
-  // 3. Update Tampilan LCD I2C 16x2 (Bergantian tiap 2.5 detik)
+  // 4. Update Tampilan LCD I2C 16x2 (Bergantian tiap 2.5 detik)
   updateLcdDisplay(pga, gal, mmi, dangerScale, tdsPpm, ph, waterLevel, rainStatus);
 
-  // 4. Kirim Telemetri ke Django Backend Jika WiFi Terkoneksi
-  if (WiFi.status() == WL_CONNECTED) {
+  // 5. Kirim Telemetri ke Django Backend Jika WiFi Terkoneksi
+  if (wifiState == WIFI_CONNECTED && WiFi.status() == WL_CONNECTED) {
     if (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL_MS) {
       sendTelemetryHttp(pga, gal, mmi, waterLevel, rainRaw, rainRate, tdsPpm, ph);
       lastTelemetryTime = millis();
     }
-  } else {
-    // Jika WiFi offline, pastikan Bluetooth aktif untuk menerima konfigurasi
-    if (!isBluetoothActive) {
-      startBluetooth();
-    }
   }
 
-  // 5. Layani Perintah Bluetooth HC-06 & USB Serial
+  // 6. Layani Perintah Bluetooth HC-06 & USB Serial
   while (HC06.available()) {
     char c = (char)HC06.read();
     Serial.write(c);
@@ -311,7 +296,8 @@ void loop() {
     inputBuffer = "";
   }
 
-  delay(20);
+  yield();
+  delay(1);
 }
 
 // ==============================================================================
@@ -591,39 +577,129 @@ void sendTelemetryHttp(float pga, float gal, String mmi, float waterLevel, int r
 }
 
 // ==============================================================================
-// 12. KONEKSI WIFI & BLUETOOTH PROVISIONING (HC-06)
+// 12. KONEKSI WIFI STATE MACHINE (NON-BLOCKING DENGAN BROWNOUT-SAFE 11dBm)
 // ==============================================================================
-bool tryConnectSavedWiFi() {
-  if (savedSSID.length() == 0) return false;
-
-  Serial.println("\n[WIFI] Menghubungkan ke: " + savedSSID);
-
-  WiFi.disconnect(true);
-  delay(40);
-
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(true);
-  WiFi.setTxPower(WIFI_POWER_11dBm); // Mencegah lonjakan daya RF / Brownout pada ESP32-C3
-
-  if (savedPass.length() > 0) {
-    WiFi.begin(savedSSID.c_str(), savedPass.c_str());
-  } else {
-    WiFi.begin(savedSSID.c_str());
-  }
-
-  unsigned long startAttempt = millis();
-  while (millis() - startAttempt < 12000) {
-    if (WiFi.status() == WL_CONNECTED) {
-      return true;
+String wifiStatus(wl_status_t s) {
+    switch (s) {
+        case WL_CONNECTED:        return "CONNECTED";
+        case WL_NO_SSID_AVAIL:    return "NO SSID";
+        case WL_CONNECT_FAILED:   return "FAILED";
+        case WL_DISCONNECTED:     return "DISCONNECTED";
+        default:                  return String((int)s);
     }
-    Serial.print(".");
-    if (isBluetoothActive) HC06.print(".");
-    delay(400);
-  }
+}
 
-  return (WiFi.status() == WL_CONNECTED);
+String getActiveSSID() {
+    return (savedSSID.length() > 0) ? savedSSID : String(default_ssid);
+}
+
+String getActivePass() {
+    return (savedPass.length() > 0) ? savedPass : String(default_password);
+}
+
+void startWifi() {
+    wifiAttempt++;
+    String currentSsid = getActiveSSID();
+    String currentPass = getActivePass();
+
+    Serial.println("\n[WIFI] Menghubungkan ke: " + currentSsid);
+    if (isBluetoothActive) {
+        HC06.println("\n[WIFI] Menghubungkan ke: " + currentSsid);
+    }
+
+    WiFi.disconnect(true);
+    delay(100);
+
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+
+    // FIX: TX power diturunkan dari 19.5dBm ke 11dBm.
+    // ESP32-C3 Super Mini punya regulator tegangan pas-pasan;
+    // TX power maksimal sering menyebabkan brownout/reset diam-diam
+    // saat modul transmit, yang terasa sebagai "susah connect".
+    WiFi.setTxPower(WIFI_POWER_11dBm);
+
+    if (currentPass.length() > 0) {
+        WiFi.begin(currentSsid.c_str(), currentPass.c_str());
+    } else {
+        WiFi.begin(currentSsid.c_str());
+    }
+
+    wifiStart = millis();
+    dotTimer  = millis();
+    wifiState = WIFI_CONNECTING;
+}
+
+void updateWifi() {
+    switch (wifiState) {
+        case WIFI_IDLE:
+            if (millis() - wifiRetry > 2000) {
+                startWifi();
+            }
+            break;
+
+        case WIFI_CONNECTING: {
+            wl_status_t status = WiFi.status();
+            if (status == WL_CONNECTED) {
+                Serial.println("\n[WIFI] TERHUBUNG!");
+                Serial.print("[WIFI] IP: ");
+                Serial.println(WiFi.localIP());
+
+                wifiState = WIFI_CONNECTED;
+                wifiAttempt = 0;
+
+                if (isBluetoothActive) {
+                    HC06.println("\n✅ [WIFI] TERHUBUNG! IP: " + WiFi.localIP().toString());
+                }
+
+                if (lcdAvailable) {
+                    lcd.clear();
+                    lcd.setCursor(0, 0);
+                    lcd.print("WiFi Terhubung!");
+                    lcd.setCursor(0, 1);
+                    lcd.print(WiFi.localIP().toString());
+                }
+            } else {
+                if (millis() - dotTimer > 500) {
+                    Serial.print(".");
+                    if (isBluetoothActive) HC06.print(".");
+                    dotTimer = millis();
+                }
+
+                if (millis() - wifiStart > 10000) {
+                    Serial.println("\n[WIFI] Gagal/Timeout: " + wifiStatus(status));
+                    if (isBluetoothActive) {
+                        HC06.println("\n[WIFI] Gagal/Timeout: " + wifiStatus(status));
+                    }
+                    WiFi.disconnect(true);
+                    wifiState = WIFI_IDLE;
+                    wifiRetry = millis();
+
+                    if (!isBluetoothActive) {
+                        startBluetooth();
+                    }
+                }
+            }
+            break;
+        }
+
+        case WIFI_CONNECTED:
+            if (WiFi.status() != WL_CONNECTED) {
+                Serial.println("\n[WIFI] TERPUTUS! Reconnecting...");
+                if (isBluetoothActive) {
+                    HC06.println("\n[WIFI] TERPUTUS! Reconnecting...");
+                }
+                wifiState = WIFI_IDLE;
+                wifiRetry = millis();
+
+                if (!isBluetoothActive) {
+                    startBluetooth();
+                }
+            }
+            break;
+    }
 }
 
 void startBluetooth() {
@@ -689,7 +765,8 @@ void processCommand(String input) {
         ESP.restart();
       } else if (lower == "status" || lower == "2") {
         printlnBoth("\r\n📊 STATUS SISTEM ESP32-C3:");
-        printlnBoth("   • WiFi SSID  : " + (savedSSID.length() > 0 ? savedSSID : "[Belum Ada]"));
+        printlnBoth("   • WiFi SSID  : " + getActiveSSID());
+        printlnBoth("   • WiFi State : " + wifiStatus(WiFi.status()));
         printlnBoth("   • IP Address : " + (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Offline"));
         printlnBoth("   • Posko      : " + savedStationName + " (" + String(savedElevation) + " mdpl)");
         printlnBoth("   • Endpoint   : " + savedServerUrl);
@@ -707,7 +784,7 @@ void processCommand(String input) {
         printBoth("SSID -> ");
       } else if (input == "2") {
         currentState = STATE_NORMAL;
-        printlnBoth("\r\n📊 Status WiFi: " + String(WiFi.status() == WL_CONNECTED ? "TERHUBUNG 🟢" : "OFFLINE 🔴"));
+        printlnBoth("\r\n📊 Status WiFi: " + String(WiFi.status() == WL_CONNECTED ? "TERHUBUNG 🟢" : "OFFLINE 🔴") + " (" + wifiStatus(WiFi.status()) + ")");
       } else if (input == "3") {
         preferences.begin("geoshield-cfg", false);
         preferences.clear();
@@ -726,6 +803,7 @@ void processCommand(String input) {
 
     case STATE_INPUT_SSID: {
       String tempSSID = cleanString(input);
+      pendingSSID = tempSSID;
       currentState = STATE_INPUT_PASS;
       printlnBoth("\r\n✅ SSID: \"" + tempSSID + "\"");
       printlnBoth("Masukkan Password WiFi (Ketik 'none' jika tanpa sandi):");
@@ -737,7 +815,7 @@ void processCommand(String input) {
       String tempPass = cleanString(input);
       if (tempPass.equalsIgnoreCase("none")) tempPass = "";
       currentState = STATE_NORMAL;
-      saveAndRestart(savedSSID, tempPass);
+      saveAndRestart(pendingSSID, tempPass);
       break;
     }
   }
