@@ -4,36 +4,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vehicle Monitor - Real-time Tracking & Vehicle Information</title>
-    <meta name="description" content="Vehicle Monitor & Earthquake Detection EWS - Real-time Tracking & Telemetry System ITERA Lampung">
+    <title>GIS MONITORING - Sistem Informasi Geografis Pendeteksi Gempa & EWS Bandar Lampung</title>
+    <meta name="description" content="Sistem Informasi Geografis Berbasis Web (GIS) untuk Pemantauan Gempa Seismik, Curah Hujan, Elevasi, dan Kualitas Air Kota Bandar Lampung & ITERA.">
     
     <!-- PWA Meta & Manifest -->
     <link rel="manifest" href="{% static 'manifest.json' %}">
-    <meta name="theme-color" content="#0C192C">
+    <meta name="theme-color" content="#0B132B">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌋</text></svg>">
 
-    <!-- Google Fonts: Plus Jakarta Sans -->
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <!-- Leaflet CSS (OpenStreetMap GIS) -->
+    <!-- Leaflet CSS (OpenStreetMap & Google Satellite GIS) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     
     <!-- Font Awesome Icons 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <!-- Custom Stylesheet -->
+    <!-- Custom GIS Theme Stylesheet -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
-<body class="dashboard-body">
+<body class="gis-body">
 
     <!-- ============================================================================== -->
-    <!-- GATEWAY: ESP32 BLUETOOTH & ACCESS POINT PROVISIONING WIZARD (MODAL GATEKEEPER) -->
+    <!-- GATEWAY: SETUP WIFI ESP32 VIA BLUETOOTH / AP (MODAL)                           -->
     <!-- ============================================================================== -->
-    <div id="provisioning-modal" class="prov-modal-overlay active" aria-hidden="false">
+    <div id="provisioning-modal" class="prov-modal-overlay" aria-hidden="true">
         <div class="prov-modal-dialog">
             <div class="prov-modal-header">
                 <div class="prov-header-title">
@@ -46,92 +45,57 @@
                     </div>
                 </div>
                 <div class="prov-header-actions">
-                    <button id="btn-skip-provisioning" class="btn-text-skip" title="Lewati setup dan langsung buka dashboard">
+                    <button id="btn-skip-provisioning" class="btn-text-skip">
                         Lewati / Langsung Masuk <i class="fa-solid fa-arrow-right"></i>
                     </button>
-                    <button id="btn-close-provisioning" class="btn-icon-close" title="Tutup">
+                    <button id="btn-close-provisioning" class="btn-icon-close">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
 
             <div class="prov-modal-body">
-                <!-- Step Indicator -->
-                <div class="prov-steps-nav">
-                    <div class="step-item active">
-                        <span class="step-num">1</span>
-                        <span class="step-txt">Hubungkan Bluetooth HC-06</span>
-                    </div>
-                    <div class="step-line"></div>
-                    <div class="step-item active">
-                        <span class="step-num">2</span>
-                        <span class="step-txt">Input SSID & Sandi WiFi</span>
-                    </div>
-                    <div class="step-line"></div>
-                    <div class="step-item">
-                        <span class="step-num">3</span>
-                        <span class="step-txt">Verifikasi & Masuk Menu</span>
-                    </div>
-                </div>
-
                 <div class="prov-content-grid">
-                    <!-- Left: Connection Form -->
                     <div class="prov-form-col">
                         <div class="prov-card-inner">
                             <div class="prov-section-header">
-                                <h3><i class="fa-solid fa-tower-cell"></i> 1. Sambungkan Perangkat</h3>
+                                <h3><i class="fa-solid fa-tower-cell"></i> 1. Koneksi Bluetooth HC-06</h3>
                                 <span id="prov-status-indicator" class="status-pill warning">Siap Pairing</span>
                             </div>
-                            <p class="prov-help-text">
-                                Hubungkan HP / Laptop ke Bluetooth <strong>HC-06</strong> atau gunakan mode simulasi untuk pengujian demo.
-                            </p>
+                            <p class="prov-help-text">Hubungkan ke modul HC-06 ESP32-C3 untuk mengatur WiFi stasiun.</p>
                             <div class="prov-btn-group">
                                 <button id="btn-connect-bt" class="btn btn-bluetooth">
                                     <i class="fa-brands fa-bluetooth-b"></i> Scan & Hubungkan HC-06
                                 </button>
                                 <button id="btn-disconnect-bt" class="btn btn-outline-danger hidden">
-                                    <i class="fa-solid fa-link-slash"></i> Putuskan Bluetooth
+                                    <i class="fa-solid fa-link-slash"></i> Putuskan
                                 </button>
-                                <button id="btn-simulate-esp" class="btn btn-outline-secondary" title="Simulasi respon ESP32 tanpa hardware fisik">
-                                    <i class="fa-solid fa-play"></i> Mode Simulasi Cepat
+                                <button id="btn-simulate-esp" class="btn btn-outline-secondary">
+                                    <i class="fa-solid fa-play"></i> Mode Simulasi Demo
                                 </button>
                             </div>
                         </div>
 
                         <div class="prov-card-inner mt-3">
                             <div class="prov-section-header">
-                                <h3><i class="fa-solid fa-wifi"></i> 2. Kredensial WiFi Rumah / Kampus</h3>
+                                <h3><i class="fa-solid fa-wifi"></i> 2. Kredensial WiFi</h3>
                             </div>
                             <div class="prov-form-group">
                                 <label for="prov-wifi-ssid">Nama WiFi (SSID):</label>
-                                <div class="input-with-icon">
-                                    <i class="fa-solid fa-network-wired"></i>
-                                    <input type="text" id="prov-wifi-ssid" placeholder="Contoh: ITERA-WiFi / Hotspot HP" value="ITERA-WiFi">
-                                </div>
+                                <input type="text" id="prov-wifi-ssid" class="input-dark" placeholder="Contoh: ITERA-WiFi" value="ITERA-WiFi">
                             </div>
                             <div class="prov-form-group mt-2">
                                 <label for="prov-wifi-pass">Password WiFi:</label>
-                                <div class="input-with-icon">
-                                    <i class="fa-solid fa-key"></i>
-                                    <input type="password" id="prov-wifi-pass" placeholder="Ketik sandi WiFi (kosongkan jika tanpa sandi)" value="itera12345">
-                                </div>
+                                <input type="password" id="prov-wifi-pass" class="input-dark" placeholder="Kata sandi WiFi" value="itera12345">
                             </div>
                             <div class="prov-actions mt-3">
                                 <button id="btn-send-wifi-config" class="btn btn-primary btn-block">
-                                    <i class="fa-solid fa-paper-plane"></i> Kirim Konfigurasi ke ESP32
+                                    <i class="fa-solid fa-paper-plane"></i> Kirim ke ESP32 & Restart
                                 </button>
                             </div>
                         </div>
-
-                        <!-- Quick Action Utilities -->
-                        <div class="prov-quick-actions mt-2">
-                            <button id="btn-check-status-esp" class="btn-sm btn-outline"><i class="fa-solid fa-info-circle"></i> Cek Status</button>
-                            <button id="btn-restart-esp" class="btn-sm btn-outline"><i class="fa-solid fa-rotate"></i> Reboot ESP32</button>
-                            <a href="http://192.168.4.1" target="_blank" class="btn-sm btn-outline" title="Akses Point AP Mode"><i class="fa-solid fa-globe"></i> AP 192.168.4.1</a>
-                        </div>
                     </div>
 
-                    <!-- Right: Live ESP32 Serial Terminal -->
                     <div class="prov-terminal-col">
                         <div class="terminal-card">
                             <div class="terminal-header">
@@ -140,17 +104,16 @@
                                     <span class="dot dot-yellow"></span>
                                     <span class="dot dot-green"></span>
                                 </div>
-                                <span class="terminal-title"><i class="fa-solid fa-terminal"></i> Konsol UART ESP32 (HC-06 9600 Baud)</span>
-                                <span id="prov-conn-state-text" class="terminal-status">Menunggu Input</span>
+                                <span class="terminal-title">Konsol UART ESP32-C3 (9600 Baud)</span>
                             </div>
                             <div id="prov-terminal-output" class="terminal-body">
-                                <div class="terminal-line line-info">[BOOT] GeoShield EWS ESP32 Provisioning Manager Ready.</div>
-                                <div class="terminal-line line-muted">[INFO] Firmware: esp32_c3_hc06_wifi_manager.ino loaded.</div>
-                                <div class="terminal-line line-rx">[BLUETOOTH] Silakan masukkan SSID & Password lalu klik "Kirim Konfigurasi"...</div>
+                                <div class="terminal-line line-info">[BOOT] ESP32-C3 Disaster Station Ready.</div>
+                                <div class="terminal-line line-muted">[INFO] MPU-6050 Deadband Filter Aktif.</div>
+                                <div class="terminal-line line-rx">[BLUETOOTH] Menunggu pengiriman kredensial WiFi...</div>
                             </div>
                             <div class="terminal-footer">
                                 <button id="btn-enter-dashboard" class="btn btn-success btn-block hidden">
-                                    <i class="fa-solid fa-gauge-high"></i> Konfigurasi Sukses! Masuk ke Dashboard Utama
+                                    <i class="fa-solid fa-gauge-high"></i> Sukses! Buka Dashboard GIS
                                 </button>
                             </div>
                         </div>
@@ -161,418 +124,331 @@
     </div>
 
     <!-- ============================================================================== -->
-    <!-- MAIN APPLICATION WRAPPER (MATCHED 1:1 WITH USER REFERENCE IMAGE)               -->
+    <!-- 1. TOP GIS NAVIGATION BAR (MATCHES USER SCREENSHOT: GIS MONITORING)            -->
     <!-- ============================================================================== -->
-    <div class="vehicle-layout-container">
-
-        <!-- 1. LEFT SIDEBAR (Dark Navy) -->
-        <aside class="sidebar-nav">
-            <div class="sidebar-top">
-                <!-- Top Brand Logo -->
-                <div class="brand-logo-box">
-                    <div class="logo-icon-wrap">
-                        <i class="fa-solid fa-car-side logo-icon"></i>
-                    </div>
+    <header class="gis-navbar">
+        <div class="gis-nav-left">
+            <div class="gis-brand-logo">
+                <i class="fa-solid fa-earth-asia brand-globe-icon"></i>
+                <div class="brand-titles">
+                    <h1 class="gis-title">GIS MONITORING</h1>
+                    <span class="gis-subtitle">Sistem Informasi Geografis EWS Kota Bandar Lampung</span>
                 </div>
-
-                <!-- Navigation Menu -->
-                <nav class="sidebar-menu">
-                    <a href="{% url 'monitoring:dashboard' %}" class="menu-link active">
-                        <i class="fa-solid fa-house-chimney"></i>
-                        <span>Dashboard</span>
-                    </a>
-                    <a href="#peta" id="sidebar-nav-peta" class="menu-link">
-                        <i class="fa-solid fa-map-location-dot"></i>
-                        <span>Peta</span>
-                    </a>
-                    <a href="#riwayat" id="sidebar-nav-riwayat" class="menu-link">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
-                        <span>Riwayat Perjalanan</span>
-                    </a>
-                    <a href="#perawatan" id="sidebar-nav-perawatan" class="menu-link">
-                        <i class="fa-solid fa-wrench"></i>
-                        <span>Perawatan</span>
-                    </a>
-                    <a href="#bluetooth" id="sidebar-nav-bluetooth" class="menu-link" title="Setup WiFi ESP32 via Bluetooth">
-                        <i class="fa-brands fa-bluetooth-b text-info"></i>
-                        <span>Setup WiFi ESP32</span>
-                    </a>
-                    <a href="#pengaturan" id="sidebar-nav-pengaturan" class="menu-link">
-                        <i class="fa-solid fa-gear"></i>
-                        <span>Pengaturan</span>
-                    </a>
-                </nav>
             </div>
 
-            <!-- Bottom Slogan Branding (Matches Screenshot) -->
-            <div class="sidebar-bottom">
-                <div class="slogan-box">
-                    <p>Jaga Kendaraan</p>
-                    <p>Jaga Perjalanan</p>
-                    <p>Jaga Masa Depan</p>
+            <!-- Top Menu Items -->
+            <nav class="gis-nav-links">
+                <a href="#pos-alat" class="nav-link active"><i class="fa-solid fa-list-check"></i> List Pos Alat</a>
+                <a href="#skala-bahaya" class="nav-link"><i class="fa-solid fa-triangle-exclamation"></i> Skala Bahaya Gempa</a>
+                <a href="#data-hujan" class="nav-link"><i class="fa-solid fa-cloud-showers-heavy"></i> Data Hujan</a>
+                <a href="#elevasi" class="nav-link"><i class="fa-solid fa-mountain"></i> Elevasi Wilayah</a>
+            </nav>
+        </div>
+
+        <!-- Top Search & Quick Actions -->
+        <div class="gis-nav-right">
+            <div class="gis-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="filter-pos-input" placeholder="Search pos pantau / kecamatan..." autocomplete="off">
+            </div>
+
+            <button id="btn-reset-bandarlampung" class="btn-gis-action" title="Fokuskan Peta ke 1 Kota Bandar Lampung Penuh">
+                <i class="fa-solid fa-crosshairs text-primary"></i> 1 Bandar Lampung
+            </button>
+
+            <button id="btn-open-provisioning" class="btn-gis-action" title="Setup WiFi ESP32 via Bluetooth">
+                <i class="fa-brands fa-bluetooth-b text-info"></i> Setup WiFi ESP32
+            </button>
+
+            <button id="btn-install-pwa" class="btn-gis-action hidden" title="Install Web App">
+                <i class="fa-solid fa-download text-success"></i> Install App
+            </button>
+        </div>
+    </header>
+
+    <!-- ============================================================================== -->
+    <!-- 2. MAIN GIS WORKSPACE (LEFT: POS ALAT SIDEBAR | RIGHT: FULL SATELLITE MAP)     -->
+    <!-- ============================================================================== -->
+    <div class="gis-workspace">
+
+        <!-- A. LEFT PANEL: POS ALAT (MATCHES USER SCREENSHOT) -->
+        <aside class="gis-sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fa-solid fa-tower-broadcast"></i> Pos Alat</h2>
+                <span class="badge-station-count">7 Pos Pantau</span>
+            </div>
+
+            <!-- Filter Box & Sort Button -->
+            <div class="sidebar-filter-bar">
+                <input type="text" id="quick-filter-input" placeholder="Filter..." class="filter-input-small">
+                <button id="btn-sort-stations" class="btn-sort" title="Urutkan Pos Alat"><i class="fa-solid fa-arrow-down-a-z"></i> Sort</button>
+            </div>
+
+            <!-- List Pos Alat (Bandar Lampung, ITERA, Way Huwi, Rajabasa, dll) -->
+            <div class="station-list-scroll" id="station-list-container">
+                <!-- Di-render dinamis oleh static/js/map.js -->
+            </div>
+
+            <!-- Quick Selected Station Real-Time Card -->
+            <div class="active-station-card">
+                <div class="card-header-mini">
+                    <span class="status-live-dot"></span>
+                    <strong id="active-station-title">Pos Pantau ITERA (Pusat EWS)</strong>
+                </div>
+                <div class="active-metrics-grid">
+                    <div class="m-metric">
+                        <span class="m-lbl">Elevasi</span>
+                        <strong class="m-val text-primary" id="active-station-elevation">124 mdpl</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">PGA (g)</span>
+                        <strong class="m-val text-success" id="active-station-pga">0.000 g</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Akselerasi Gal</span>
+                        <strong class="m-val" id="active-station-gal">0.0 gal</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Skala MMI</span>
+                        <strong class="m-val" id="active-station-mmi">I (Aman)</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Curah Hujan</span>
+                        <strong class="m-val" id="active-station-rain">0.0 mm/h (Cerah)</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Tinggi Air</span>
+                        <strong class="m-val" id="active-station-water">42.0 cm</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">TDS / pH</span>
+                        <strong class="m-val" id="active-station-tds">148 ppm | pH 7.2</strong>
+                    </div>
                 </div>
             </div>
         </aside>
 
-        <!-- 2. MAIN VIEWPORT -->
-        <div class="main-viewport">
-
-            <!-- TOP NAVBAR (Clean & White) -->
-            <header class="top-header">
-                <div class="header-left">
-                    <div class="header-title-group">
-                        <div class="header-icon">
-                            <i class="fa-solid fa-car-side"></i>
-                        </div>
-                        <div>
-                            <h1 class="header-main-title">Vehicle Monitor</h1>
-                            <p class="header-sub-title">Real-time Tracking & Vehicle Information</p>
-                        </div>
+        <!-- B. CENTER / RIGHT: FULL SATELLITE GIS MAP WITH GOOGLE MAPS TILES -->
+        <main class="gis-map-area">
+            
+            <!-- Floating Layer Switcher & Checklist (MATCHES USER SCREENSHOT TOP-RIGHT) -->
+            <div class="gis-floating-layer-panel">
+                <div class="layer-section">
+                    <div class="layer-radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="map-base-layer" id="layer-satellite" checked>
+                            <span>Satelit (Google GIS)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="map-base-layer" id="layer-roadmap">
+                            <span>Peta (Roadmap)</span>
+                        </label>
                     </div>
                 </div>
 
-                <div class="header-right">
-                    <!-- Status Online Pill -->
-                    <div class="header-pill status-online">
-                        <span class="dot-indicator green"></span>
-                        <span id="header-conn-status">Online</span>
-                    </div>
+                <div class="layer-divider"></div>
 
-                    <!-- Live Date & Clock -->
-                    <div class="header-pill date-clock">
-                        <i class="fa-regular fa-clock"></i>
-                        <span id="live-time-display">18 Sep 2025 08:21</span>
-                    </div>
-
-                    <!-- User Profile Badge -->
-                    <div class="user-profile-badge">
-                        <div class="user-avatar">
-                            <i class="fa-solid fa-circle-user"></i>
-                        </div>
-                        <div class="user-meta">
-                            <span class="user-name">Fauzan Javier Keza</span>
-                            <span class="user-role">User</span>
-                        </div>
-                    </div>
-
-                    <!-- Setup WiFi Button -->
-                    <div class="header-quick-actions">
-                        <button id="btn-open-provisioning" class="btn-top-action" title="Buka Pengaturan WiFi ESP32">
-                            <i class="fa-brands fa-bluetooth-b text-primary"></i> Setup WiFi
-                        </button>
-                        <button id="btn-install-pwa" class="btn-top-action hidden" title="Install Aplikasi EWS">
-                            <i class="fa-solid fa-download text-success"></i> Install App
-                        </button>
+                <div class="layer-section">
+                    <div class="layer-title"><i class="fa-solid fa-layer-group"></i> Pos Pantau:</div>
+                    <div class="layer-checklist">
+                        <label class="chk-label">
+                            <input type="checkbox" id="chk-layer-rain" checked>
+                            <span class="chk-icon icon-rain"><i class="fa-solid fa-cloud-rain"></i></span>
+                            <span>Curah Hujan</span>
+                        </label>
+                        <label class="chk-label">
+                            <input type="checkbox" id="chk-layer-quake" checked>
+                            <span class="chk-icon icon-quake"><i class="fa-solid fa-wave-square"></i></span>
+                            <span>Gempa / Seismik</span>
+                        </label>
+                        <label class="chk-label">
+                            <input type="checkbox" id="chk-layer-water" checked>
+                            <span class="chk-icon icon-water"><i class="fa-solid fa-droplet"></i></span>
+                            <span>Muka Air Sungai</span>
+                        </label>
                     </div>
                 </div>
-            </header>
-
-            <!-- DASHBOARD CONTENT GRID (Left 68% + Right 32%) -->
-            <div class="dashboard-content-layout">
-
-                <!-- LEFT / CENTER COLUMN (MAP + 4 METRIC CARDS) -->
-                <section class="center-content-column">
-
-                    <!-- FULL MAP HERO CARD -->
-                    <div class="card full-map-card">
-                        <!-- Floating Top-Left Mode Pills -->
-                        <div class="map-floating-top-left">
-                            <button id="btn-mode-realtime" class="btn-floating-pill active">
-                                <i class="fa-solid fa-location-crosshairs"></i> Realtime
-                            </button>
-                            <button id="btn-mode-route" class="btn-floating-pill">
-                                <i class="fa-solid fa-route"></i> Rute
-                            </button>
-                        </div>
-
-                        <!-- Floating Top-Right Controls -->
-                        <div class="map-floating-top-right">
-                            <button id="btn-fullscreen-map" class="btn-floating-pill">
-                                <i class="fa-solid fa-expand"></i> Tampilkan Semua
-                            </button>
-                        </div>
-
-                        <!-- Leaflet Interactive Map Container (Centered at ITERA Lampung) -->
-                        <div id="leaflet-map" class="map-canvas-full"></div>
-
-                        <!-- Floating Station / Vehicle Info Card Over Marker -->
-                        <div class="map-floating-info-card" id="map-marker-infocard">
-                            <div class="info-car-icon">
-                                <i class="fa-solid fa-car-side"></i>
-                            </div>
-                            <div class="info-texts">
-                                <div class="info-primary">Kecepatan <strong id="map-tooltip-speed">48 km/h</strong></div>
-                                <div class="info-coords">Lat: <span id="map-tooltip-lat">-5.4267</span> Lon: <span id="map-tooltip-lon">105.3179</span></div>
-                            </div>
-                        </div>
-
-                        <!-- Floating Bottom-Right Map Controls -->
-                        <div class="map-floating-bottom-right">
-                            <button id="btn-recenter-map" class="map-ctrl-btn" title="Pusatkan ke Posisi Sensor"><i class="fa-solid fa-crosshairs"></i></button>
-                            <button id="btn-zoom-in" class="map-ctrl-btn" title="Perbesar"><i class="fa-solid fa-plus"></i></button>
-                            <button id="btn-zoom-out" class="map-ctrl-btn" title="Perkecil"><i class="fa-solid fa-minus"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- 4 METRIC CARDS ROW (Exact match with reference screenshot) -->
-                    <div class="metric-quad-row">
-
-                        <!-- CARD 1: CIRCULAR SPEEDOMETER GAUGE -->
-                        <div class="card metric-box-card card-speedometer">
-                            <div class="speedometer-wrapper">
-                                <svg class="speedometer-svg" viewBox="0 0 200 130">
-                                    <!-- Background Arc -->
-                                    <path class="arc-bg" d="M 25 110 A 75 75 0 0 1 175 110" fill="none" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round" />
-                                    <!-- Progress Arc -->
-                                    <path id="speed-arc-progress" class="arc-fill" d="M 25 110 A 75 75 0 0 1 175 110" fill="none" stroke="#1A68FF" stroke-width="12" stroke-linecap="round" stroke-dasharray="235" stroke-dashoffset="118" />
-                                </svg>
-                                <div class="speed-center-text">
-                                    <span class="speed-number" id="val-speed-display">48</span>
-                                    <span class="speed-unit" id="val-speed-unit">km/h</span>
-                                </div>
-                            </div>
-                            <div class="speed-label-text">Kecepatan Saat Ini</div>
-                            
-                            <div class="speed-limit-badge">
-                                <div class="limit-circle">
-                                    <span id="val-speed-limit">60</span>
-                                </div>
-                                <div class="limit-info">
-                                    <span class="limit-title">Batas Kecepatan</span>
-                                    <span class="limit-val">60 km/h</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- CARD 2: FUEL GAUGE -->
-                        <div class="card metric-box-card card-fuel">
-                            <div class="card-icon-header">
-                                <i class="fa-solid fa-gas-pump icon-blue"></i>
-                            </div>
-                            <div class="card-metric-title">Bahan Bakar</div>
-                            <div class="card-metric-value" id="val-fuel-display">62%</div>
-                            
-                            <div class="custom-progress-bar">
-                                <div class="progress-fill blue" id="fuel-progress-fill" style="width: 62%;"></div>
-                            </div>
-
-                            <div class="card-metric-footer">
-                                <div class="footer-bold" id="val-distance-est">± 440 km</div>
-                                <div class="footer-muted">Jarak Tempuh Estimasi</div>
-                            </div>
-                        </div>
-
-                        <!-- CARD 3: ENGINE TEMP -->
-                        <div class="card metric-box-card card-temp">
-                            <div class="card-icon-header">
-                                <i class="fa-solid fa-temperature-half icon-blue"></i>
-                            </div>
-                            <div class="card-metric-title">Suhu Mesin</div>
-                            <div class="card-metric-value" id="val-temp-display">86°C</div>
-
-                            <div class="custom-progress-bar">
-                                <div class="progress-fill green" id="temp-progress-fill" style="width: 65%;"></div>
-                            </div>
-
-                            <div class="card-metric-footer">
-                                <div class="status-indicator-dot green">
-                                    <span class="dot"></span>
-                                    <span class="txt" id="val-temp-status">Normal</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- CARD 4: MAINTENANCE REMINDER -->
-                        <div class="card metric-box-card card-maintenance">
-                            <div class="card-icon-header">
-                                <i class="fa-solid fa-wrench icon-blue"></i>
-                            </div>
-                            <div class="card-metric-title">Pengingat Perawatan</div>
-
-                            <div class="maintenance-checklist">
-                                <div class="m-item">
-                                    <span class="m-dot yellow"></span>
-                                    <div class="m-texts">
-                                        <div class="m-name">Ganti Oli Mesin</div>
-                                        <div class="m-sub" id="val-oil-remaining">3.250 km lagi</div>
-                                    </div>
-                                </div>
-                                <div class="m-item">
-                                    <span class="m-dot green"></span>
-                                    <div class="m-texts">
-                                        <div class="m-name">Filter Udara</div>
-                                        <div class="m-sub" id="val-filter-remaining">8.750 km lagi</div>
-                                    </div>
-                                </div>
-                                <div class="m-item">
-                                    <span class="m-dot green"></span>
-                                    <div class="m-texts">
-                                        <div class="m-name">Ban</div>
-                                        <div class="m-sub" id="val-tire-remaining">12.000 km lagi</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                </section>
-
-                <!-- RIGHT COLUMN (VEHICLE PROFILE & RECENT TRIP TIMELINE) -->
-                <aside class="right-detail-column">
-
-                    <!-- TOP RIGHT CARD: VEHICLE PROFILE (Matches BE 1234 XX) -->
-                    <div class="card vehicle-profile-card">
-                        <div class="profile-card-header">
-                            <div class="car-plate-group">
-                                <i class="fa-solid fa-car-side car-plate-icon"></i>
-                                <h2 class="car-plate-title" id="display-plate-number">BE 1234 XX</h2>
-                            </div>
-                            <span class="badge-status-active">Aktif</span>
-                        </div>
-
-                        <div class="car-illustration-wrap">
-                            <svg class="car-vector-img" viewBox="0 0 320 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <ellipse cx="160" cy="130" rx="140" ry="8" fill="#E2E8F0"/>
-                                <!-- Car Body -->
-                                <path d="M40 100 L60 65 Q80 50 120 48 L200 48 Q235 50 255 70 L280 85 Q295 92 295 108 L295 115 Q295 118 290 118 L260 118 Q260 100 240 100 Q220 100 220 118 L110 118 Q110 100 90 100 Q70 100 70 118 L40 118 Q35 118 35 112 L35 105 Q35 100 40 100 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
-                                <!-- Roof & Windows -->
-                                <path d="M115 54 L195 54 Q220 55 235 70 L250 82 L70 82 L85 68 Q98 55 115 54 Z" fill="#3B82F6" opacity="0.85"/>
-                                <line x1="165" y1="54" x2="165" y2="82" stroke="#FFFFFF" stroke-width="3"/>
-                                <!-- Headlights & Details -->
-                                <path d="M275 88 L290 92 L285 98 L270 95 Z" fill="#FBBF24"/>
-                                <path d="M38 98 L48 98 L48 106 L38 106 Z" fill="#EF4444"/>
-                                <!-- Wheels -->
-                                <circle cx="90" cy="115" r="18" fill="#1E293B"/>
-                                <circle cx="90" cy="115" r="10" fill="#94A3B8"/>
-                                <circle cx="240" cy="115" r="18" fill="#1E293B"/>
-                                <circle cx="240" cy="115" r="10" fill="#94A3B8"/>
-                            </svg>
-                        </div>
-
-                        <div class="vehicle-title-wrap">
-                            <h3 class="vehicle-name" id="display-vehicle-model">Toyota Avanza</h3>
-                            <span class="vehicle-type">Mobil Keluarga</span>
-                            <div class="vehicle-odo-pill">
-                                <span>Odo: <strong id="display-odo-badge">97.248 km</strong></span>
-                            </div>
-                        </div>
-
-                        <div class="specs-data-list">
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-gauge-high text-primary"></i> Kecepatan
-                                </div>
-                                <div class="spec-val" id="spec-val-speed">48 km/h</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-route text-primary"></i> Jarak Tempuh (Trip)
-                                </div>
-                                <div class="spec-val" id="spec-val-trip">12.6 km</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-road text-primary"></i> Odo Total
-                                </div>
-                                <div class="spec-val" id="spec-val-odo">97.248 km</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-regular fa-calendar-days text-primary"></i> Tanggal & Waktu
-                                </div>
-                                <div class="spec-val" id="spec-val-datetime">18 Sep 2025 08:21</div>
-                            </div>
-                            <div class="spec-row">
-                                <div class="spec-label">
-                                    <i class="fa-solid fa-location-dot text-primary"></i> Lokasi
-                                </div>
-                                <div class="spec-val text-clickable" id="spec-val-location" title="Klik untuk fokus di peta">
-                                    -5.4267, 105.3179
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- BOTTOM RIGHT CARD: RECENT TRIP TIMELINE -->
-                    <div class="card trip-history-card">
-                        <div class="trip-card-header">
-                            <div class="trip-header-title">
-                                <i class="fa-solid fa-route text-primary"></i>
-                                <h3>Riwayat Perjalanan Terakhir</h3>
-                            </div>
-                            <a href="#riwayat-lengkap" id="btn-view-all-trips" class="link-view-all">Lihat Semua</a>
-                        </div>
-
-                        <div class="trip-timeline-list" id="trip-timeline-container">
-                            <!-- Timeline Node 1 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                    <div class="v-line"></div>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:15</span>
-                                    <div class="t-desc">
-                                        <strong>Start - Jl. Terusan Ryacudu</strong>
-                                        <div class="t-sub">-5.4268, 105.3172</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Timeline Node 2 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                    <div class="v-line"></div>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:18</span>
-                                    <div class="t-desc">
-                                        <strong>Kecepatan 65 km/h</strong>
-                                        <div class="t-sub">Jl. Terusan Ryacudu</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Timeline Node 3 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                    <div class="v-line"></div>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:20</span>
-                                    <div class="t-desc">
-                                        <strong>Kecepatan 48 km/h</strong>
-                                        <div class="t-sub">Dekat Institut Teknologi Sumatera</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Timeline Node 4 -->
-                            <div class="timeline-entry">
-                                <div class="t-node">
-                                    <span class="blue-dot"></span>
-                                </div>
-                                <div class="t-content">
-                                    <span class="t-time">08:21</span>
-                                    <div class="t-desc">
-                                        <strong>Lokasi Saat Ini</strong>
-                                        <div class="t-sub">-5.4267, 105.3179</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                </aside>
-
             </div>
 
-        </div>
+            <!-- Leaflet Map Canvas (Centered on Entire Bandar Lampung City) -->
+            <div id="gis-map-viewport" class="gis-map-canvas"></div>
+
+            <!-- Floating Bottom Info: Elevation & Coordinates of Bandar Lampung -->
+            <div class="gis-floating-footer">
+                <div class="footer-tag">
+                    <i class="fa-solid fa-location-dot text-primary"></i> <strong>Wilayah:</strong> Kota Bandar Lampung & Lampung Selatan
+                </div>
+                <div class="footer-tag">
+                    <i class="fa-solid fa-mountain text-warning"></i> <strong>Rentang Elevasi:</strong> 12 mdpl (Pesisir Panjang) - 215 mdpl (Kemiling)
+                </div>
+                <div class="footer-tag">
+                    <i class="fa-solid fa-satellite text-info"></i> <strong>Engine:</strong> Google Maps Satellite & OpenStreetMap GIS
+                </div>
+            </div>
+        </main>
 
     </div>
+
+    <!-- ============================================================================== -->
+    <!-- 3. PARAMETER BERBAHAYA GEMPA, HUJAN, ELEVASI (PERMINTAAN DOSEN)                -->
+    <!-- ============================================================================== -->
+    <section class="gis-details-container" id="skala-bahaya">
+        
+        <!-- CARD 1: SATUAN BERBAHAYA GEMPA (PGA, GAL, SKALA MMI) -->
+        <div class="detail-card">
+            <div class="detail-header">
+                <h3><i class="fa-solid fa-burst text-danger"></i> Satuan Berbahaya Gempa (PGA, Gal & Skala MMI)</h3>
+                <span class="badge badge-danger">Standar BMKG & USGS</span>
+            </div>
+            <p class="detail-desc">Ambang batas getaran seismik dari sensor MPU-6050 ESP32-C3 dengan Deadband Noise Filter:</p>
+            
+            <div class="table-responsive">
+                <table class="gis-table">
+                    <thead>
+                        <tr>
+                            <th>Tingkat Bahaya</th>
+                            <th>PGA (g)</th>
+                            <th>Akselerasi (Gal)</th>
+                            <th>Skala MMI</th>
+                            <th>Estimasi Magnitudo</th>
+                            <th>Dampak Fisik Lapangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="row-normal">
+                            <td><span class="pill-status green">NORMAL / AMAN</span></td>
+                            <td>&lt; 0.002 g</td>
+                            <td>&lt; 1.4 gal</td>
+                            <td>MMI I</td>
+                            <td>&lt; 2.5 SR</td>
+                            <td>Getaran tidak dirasakan. Kondisi aman.</td>
+                        </tr>
+                        <tr class="row-warning">
+                            <td><span class="pill-status yellow">WASPADA</span></td>
+                            <td>0.002 - 0.010 g</td>
+                            <td>1.4 - 9.0 gal</td>
+                            <td>MMI II - III</td>
+                            <td>2.5 - 4.2 SR</td>
+                            <td>Getaran ringan dirasakan oleh beberapa orang di dalam rumah.</td>
+                        </tr>
+                        <tr class="row-siaga">
+                            <td><span class="pill-status orange">SIAGA</span></td>
+                            <td>0.010 - 0.030 g</td>
+                            <td>9.0 - 30.0 gal</td>
+                            <td>MMI IV - V</td>
+                            <td>4.2 - 5.5 SR</td>
+                            <td>Dirasakan banyak orang. Jendela berderik, gerabah pecah.</td>
+                        </tr>
+                        <tr class="row-danger">
+                            <td><span class="pill-status red">BAHAYA (AWAS)</span></td>
+                            <td>&gt; 0.030 g</td>
+                            <td>&gt; 30.0 gal</td>
+                            <td>MMI VI - XII</td>
+                            <td>&gt; 5.5 SR</td>
+                            <td>Kerusakan ringan hingga berat pada bangunan. Sirine darurat aktif!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CARD 2: DATA WILAYAH TERDETEKSI HUJAN & SKALA BERBAHAYA -->
+        <div class="detail-card" id="data-hujan">
+            <div class="detail-header">
+                <h3><i class="fa-solid fa-cloud-showers-heavy text-info"></i> Data Wilayah Terdeteksi Hujan & Skala Bahaya</h3>
+                <span class="badge badge-info">Pemantauan 1 Bandar Lampung</span>
+            </div>
+            <p class="detail-desc">Monitoring intensitas presipitasi hujan (FC-37) dan risiko genangan banjir di Bandar Lampung:</p>
+
+            <div class="table-responsive">
+                <table class="gis-table">
+                    <thead>
+                        <tr>
+                            <th>Kategori Hujan</th>
+                            <th>Intensitas (mm/jam)</th>
+                            <th>Status Bahaya</th>
+                            <th>Wilayah Bandar Lampung Terdeteksi</th>
+                            <th>Risiko Banjir</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Cerah / Kering</strong></td>
+                            <td>0.0 mm/jam</td>
+                            <td><span class="pill-status green">Aman</span></td>
+                            <td>Kec. Tanjung Karang Pusat, Sukarame, Kemiling</td>
+                            <td>Tidak Ada Risiko</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hujan Ringan</strong></td>
+                            <td>0.1 - 5.0 mm/jam</td>
+                            <td><span class="pill-status green">Normal</span></td>
+                            <td>Kec. Rajabasa, Way Huwi (Sekitar ITERA)</td>
+                            <td>Aman / Drainase Lancar</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hujan Sedang</strong></td>
+                            <td>5.0 - 20.0 mm/jam</td>
+                            <td><span class="pill-status yellow">Waspada</span></td>
+                            <td>Kec. Teluk Betung Selatan, Pelabuhan Panjang</td>
+                            <td>Genangan 10 - 20 cm</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hujan Lebat / Ekstrem</strong></td>
+                            <td>&gt; 20.0 mm/jam</td>
+                            <td><span class="pill-status red">Bahaya Banjir</span></td>
+                            <td>Daerah Aliran Sungai (DAS) Way Kuripan & Kali Balok</td>
+                            <td>Potensi Luapan Sungai & Genangan Tinggi</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CARD 3: ELEVASI WILAYAH & KUALITAS AIR TDS/pH -->
+        <div class="detail-card" id="elevasi">
+            <div class="detail-header">
+                <h3><i class="fa-solid fa-mountain text-primary"></i> Data Elevasi & Kualitas Air (TDS & pH)</h3>
+                <span class="badge badge-primary">Topografi Kota Bandar Lampung</span>
+            </div>
+
+            <div class="elev-grid">
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-water"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Elevasi Terendah</span>
+                        <strong class="val">12 - 18 mdpl</strong>
+                        <span class="sub">Pesisir Teluk Betung & Pelabuhan Panjang</span>
+                    </div>
+                </div>
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-city"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Elevasi Dataran Kota</span>
+                        <strong class="val">85 - 124 mdpl</strong>
+                        <span class="sub">Kampus ITERA, Rajabasa, Sukarame</span>
+                    </div>
+                </div>
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-mountain-sun"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Elevasi Tertinggi</span>
+                        <strong class="val">215 mdpl</strong>
+                        <span class="sub">Perbukitan Kemiling & Gunung Betung</span>
+                    </div>
+                </div>
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-flask"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Standar TDS & pH Air</span>
+                        <strong class="val">148 ppm | pH 7.2</strong>
+                        <span class="sub">Kondisi Air Bersih Standar PDAM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </section>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

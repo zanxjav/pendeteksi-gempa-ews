@@ -1,29 +1,11 @@
 /*
  * ==============================================================================
- * Project: GeoShield EWS - ESP32 / ESP32-C3 Master Disaster Station Firmware
- * Bluetooth Provisioning (HC-06) + Multi-Sensor EWS + HTTP REST API Client
- * Author: GeoShield EWS Open Source & ITERA Team
- *
- * FITUR UTAMA:
- * 1. Provisioning WiFi Interaktif via Bluetooth HC-06 / Serial Monitor:
- *    - Mendukung perintah: 'menu', 'masukan wifi', 'set:SSID,PASS', 'server:URL', 'status', 'sensor', 'restart'.
- *    - Menyimpan SSID, Password, dan Server URL ke memori flash permanen (NVS Preferences).
- *    - Otomatis restart (ESP.restart()) setelah WiFi baru disimpan.
- * 2. Driver RF WiFi Super Stabil:
- *    - Mode STA dengan TX Power 11dBm (mencegah brownout / drop tegangan ESP32-C3).
- *    - Auto-reconnect jika koneksi internet terputus.
- * 3. Manajemen Daya Cerdas Bluetooth:
- *    - Bluetooth HC-06 aktif saat belum ada koneksi WiFi atau jika WiFi terputus.
- *    - Setelah WiFi terhubung sukses, Bluetooth dapat dinonaktifkan otomatis untuk menghemat daya.
- * 4. Multi-Sensor Multi-Bencana Lengkap:
- *    - MPU-6050: Sensor Gempa bumi & percepatan getaran seismik (PGA / Gal / MMI).
- *    - HC-SR04: Sensor Ketinggian Muka Air / Deteksi Dini Banjir Sungai.
- *    - FC-37 / YL-83: Sensor Intensitas Curah Hujan (Analog ADC).
- *    - Analog TDS Meter: Sensor Kualitas Kejernihan Air Terlarut (ppm).
- *    - 5V Active Buzzer & LED: Sirine darurat lokal saat parameter melewati batas aman.
- * 5. Pengiriman Data Telemetri HTTP POST:
- *    - Mengirim payload JSON standar ke endpoint REST API Django: /api/telemetry/
- *    - Frekuensi pengiriman periodik (default 1000ms / 1 detik).
+ * Project: GeoShield EWS - ESP32-C3 Master Disaster Early Warning System
+ * Microcontroller: ESP32-C3 (RISC-V) / ESP32 DevKit V1
+ * Sensors: MPU-6050 (Seismik Gempa), TDS & pH Air, FC-37 Hujan, HC-SR04 Water Level
+ * Actuators: LCD I2C 16x2, Active Buzzer, LED Alert
+ * Connectivity: Bluetooth HC-06 (WiFi Manager & Login AP) + HTTP REST API Client
+ * Author: GeoShield EWS - ITERA & Bandar Lampung Monitoring Team
  * ==============================================================================
  */
 
@@ -32,16 +14,17 @@
 #include <HTTPClient.h>
 #include <Wire.h>
 #include <Preferences.h>
+#include <LiquidCrystal_I2C.h>
 
 // ==============================================================================
-// 1. PINOUT HARDWARE (MENDUKUNG ESP32-C3 & ESP32 DEVKIT V1 OTOMATIS)
+// 1. PINOUT HARDWARE (MENDUKUNG ESP32-C3 & ESP32 STANDARD OTOMATIS)
 // ==============================================================================
 #if defined(CONFIG_IDF_TARGET_ESP32C3)
-  // Pinout Khusus ESP32-C3 (RISC-V Single Core)
+  // Pinout Khusus ESP32-C3 (RISC-V Core)
   #define HC06_RX_PIN        20   // Pin RX ESP32-C3 <-- TX HC-06
   #define HC06_TX_PIN        21   // Pin TX ESP32-C3 --> RX HC-06
-  #define I2C_SDA_PIN        8    // MPU6050 SDA
-  #define I2C_SCL_PIN        9    // MPU6050 SCL
+  #define I2C_SDA_PIN        8    // MPU6050 & LCD I2C SDA
+  #define I2C_SCL_PIN        9    // MPU6050 & LCD I2C SCL
   #define HC_TRIG_PIN        6    // Ultrasonic HC-SR04 Trig
   #define HC_ECHO_PIN        7    // Ultrasonic HC-SR04 Echo
   #define RAIN_ANALOG_PIN    0    // FC-37 Raindrop (ADC1 CH0)
@@ -53,77 +36,78 @@
   // Pinout ESP32 DevKit V1 (30 Pin / 38 Pin) Standar
   #define HC06_RX_PIN        16   // Pin RX2 ESP32 <-- TX HC-06
   #define HC06_TX_PIN        17   // Pin TX2 ESP32 --> RX HC-06
-  #define I2C_SDA_PIN        21   // MPU6050 SDA
-  #define I2C_SCL_PIN        22   // MPU6050 SCL
+  #define I2C_SDA_PIN        21   // MPU6050 & LCD I2C SDA
+  #define I2C_SCL_PIN        22   // MPU6050 & LCD I2C SCL
   #define HC_TRIG_PIN        5    // Ultrasonic HC-SR04 Trig
   #define HC_ECHO_PIN        18   // Ultrasonic HC-SR04 Echo
   #define RAIN_ANALOG_PIN    34   // FC-37 Raindrop (ADC1 CH6)
   #define TDS_ANALOG_PIN     35   // TDS Meter (ADC1 CH7)
   #define BUZZER_PIN         4    // Active Buzzer EWS
   #define LED_STATUS_PIN     2    // Onboard Status LED
-  HardwareSerial HC06(2);         // UART2 HC-06
+  HardwareSerial HC06(1);         // UART HC-06
 #endif
 
 // ==============================================================================
-// 2. REGISTER & KONSTANTA SENSOR
+// 2. KONFIGURASI MPU-6050 & DEAD-BAND SENSITIVITAS GEMPA
 // ==============================================================================
-#define MPU6050_ADDR             0x68
-#define MPU6050_PWR_MGMT_1       0x6B
-#define MPU6050_ACCEL_XOUT_H     0x3B
+#define MPU6050_ADDR          0x68
+#define MPU6050_PWR_MGMT_1    0x6B
+#define MPU6050_ACCEL_XOUT_H  0x3B
 
-// Kalibrasi jarak sensor HC-SR04 ke dasar sungai saat kering (cm)
-const float DISTANCE_TO_RIVER_BED_CM = 250.0;
+// Deadband Filter: Getaran di bawah ambang batas ini dianggap noise (baca 0.000 g)
+const float SEISMIC_NOISE_DEADBAND_G = 0.018; // ~17.6 Gal (noise meja/kaki = 0)
+const float SEISMIC_ALPHA_FILTER      = 0.35;  // Filter Low-Pass Exponential Smoothing
 
-// Batas Ambang Darurat EWS Lokal
-const float THRESHOLD_PGA_DANGER     = 0.080; // ~78 Gal (Gempa Terasa Nyata/Merusak)
-const float THRESHOLD_WATER_DANGER   = 150.0; // Ketinggian air 150 cm (Siaga Banjir)
+float baseAccelX = 0.0, baseAccelY = 0.0, baseAccelZ = 1.0;
+float currentFilteredPga = 0.0;
+bool mpuAvailable = false;
 
+// ==============================================================================
+// 3. LCD I2C 16x2 DUAL DISPLAY (SAFE RUNTIME SCANNER)
+// ==============================================================================
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+bool lcdAvailable = false;
+unsigned long lastLcdSwitchTime = 0;
+int currentLcdPage = 0; // 0 = Gempa & Seismik, 1 = Kualitas Air & Hujan
+
+// ==============================================================================
+// 4. BATAS AMBANG DARURAT (THRESHOLDS)
+// ==============================================================================
+const float THRESHOLD_PGA_WARNING     = 0.025; // Mulai terasa gempa ringan
+const float THRESHOLD_PGA_DANGER      = 0.060; // Gempa merusak (MMI VI+)
+const float THRESHOLD_WATER_WARNING   = 100.0; // cm
+const float THRESHOLD_WATER_DANGER    = 150.0; // cm
+const float DISTANCE_TO_RIVER_BED_CM  = 200.0; // Tinggi sensor ke dasar saluran
+
+// ==============================================================================
+// 5. FLASH PREFERENCES (NVS PERSISTENT STORAGE)
+// ==============================================================================
 Preferences preferences;
 
-// ==============================================================================
-// 3. VARIABEL STATE & TELEMETRI
-// ==============================================================================
+String savedSSID       = "";
+String savedPass       = "";
+String savedServerUrl  = "http://10.11.207.118:8000/api/telemetry/";
+String savedStationId  = "EWS-BDL-01";
+String savedStationName= "Posko EWS ITERA - Bandar Lampung";
+float  savedLat        = -5.4267;
+float  savedLng        = 105.3179;
+float  savedElevation  = 124.0; // mdpl (Meter Diatas Permukaan Laut)
+
+// State Machine Setup WiFi via Bluetooth
 enum SetupState {
   STATE_NORMAL,
   STATE_MENU,
   STATE_INPUT_SSID,
-  STATE_INPUT_PASS,
-  STATE_INPUT_SERVER
+  STATE_INPUT_PASS
 };
-
 SetupState currentState = STATE_NORMAL;
 
 String inputBuffer = "";
 unsigned long lastCharTime = 0;
 const unsigned long BUFFER_TIMEOUT_MS = 250;
-
-String savedSSID = "";
-String savedPass = "";
-String savedServerUrl = "http://192.168.1.100:8000/api/telemetry/";
-String savedStationId = "ST-01-ESP32";
-String savedStationName = "Pendeteksi Gempa EWS ITERA - ESP32 C3";
-float savedLat = -5.35824;
-float savedLng = 105.31465;
-
-String tempSSID = "";
-String tempPass = "";
-
 bool isBluetoothActive = false;
-bool mpuAvailable = false;
-
-unsigned long lastTelemetryMillis = 0;
-const unsigned long TELEMETRY_INTERVAL_MS = 1000; // Kirim telemetri setiap 1 detik
 
 // Prototipe Fungsi
-void initSensors();
-void initMPU6050();
-float readSeismicPga();
-float readWaterLevel();
-float mapRainfall(int rawAnalog);
-float readTdsPpm();
-void checkEmergencyAlert(float pga, float waterLevel);
-void sendTelemetryHttp(float pga, float waterLevel, int rainRaw, float rainRate, float tds);
-
 void startBluetooth();
 void stopBluetooth();
 void printBoth(String msg);
@@ -133,122 +117,171 @@ void showMainMenu();
 void processCommand(String input);
 bool tryConnectSavedWiFi();
 void saveAndRestart(String ssid, String pass);
-void printAllSensorReadings();
+void initSensors();
+void initMPU6050();
+void calibrateMPU6050Baseline();
+float readSeismicPga(float &outGal, String &outMmi, String &outDangerScale);
+float readWaterLevel(String &outWaterStatus);
+float mapRainfall(int rawAnalog, String &outRainStatus);
+float readTdsPpm(float &outPh, String &outWaterQuality);
+void updateLcdDisplay(float pga, float gal, String mmi, String dangerScale, float tds, float ph, float waterLevel, String rainStatus);
+void sendTelemetryHttp(float pga, float gal, String mmi, float waterLevel, int rainRaw, float rainRate, float tds, float ph);
+void checkEmergencyAlert(float pga, float waterLevel);
 
 // ==============================================================================
-// 4. SETUP
+// SETUP UTAMA
 // ==============================================================================
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  Serial.println("\n========================================================");
-  Serial.println("🚀 GEOSHIELD EWS - ESP32 / ESP32-C3 DISASTER MASTER");
-  Serial.println("   Stasiun Pemantau Gempa, Banjir, Cuaca & Kualitas Air");
-  Serial.println("========================================================");
+  Serial.println("\n==================================================");
+  Serial.println("🌋 GEOSHIELD EWS - ESP32-C3 BANDAR LAMPUNG EDITION");
+  Serial.println("   MPU-6050 Seismik + TDS & pH + Rain + Water Level");
+  Serial.println("   Bluetooth HC-06 Auto-Provisioning & LCD I2C 16x2");
+  Serial.println("==================================================\n");
 
-  // Inisialisasi Sensor & GPIO
+  // Inisialisasi I2C Bus ESP32-C3 (SDA=8, SCL=9)
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  delay(100);
+
+  // Inisialisasi LCD I2C 16x2 (Cek alamat 0x27 dan 0x3F otomatis)
+  Wire.beginTransmission(0x27);
+  if (Wire.endTransmission() == 0) {
+    lcd = LiquidCrystal_I2C(0x27, 16, 2);
+    lcd.init();
+    lcd.backlight();
+    lcdAvailable = true;
+  } else {
+    Wire.beginTransmission(0x3F);
+    if (Wire.endTransmission() == 0) {
+      lcd = LiquidCrystal_I2C(0x3F, 16, 2);
+      lcd.init();
+      lcd.backlight();
+      lcdAvailable = true;
+    }
+  }
+
+  if (lcdAvailable) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("GeoShield EWS");
+    lcd.setCursor(0, 1);
+    lcd.print("Booting Sistem..");
+  }
+
+  // Inisialisasi Sensor Fisik
   initSensors();
 
-  // 1. Baca data konfigurasi dari Flash NVS (Preferences)
+  // Baca kredensial WiFi dari Flash NVS
   preferences.begin("geoshield-cfg", true);
-  savedSSID = cleanString(preferences.getString("ssid", ""));
-  savedPass = cleanString(preferences.getString("pass", ""));
-  savedServerUrl = cleanString(preferences.getString("server_url", "http://192.168.1.100:8000/api/telemetry/"));
-  savedStationId = cleanString(preferences.getString("station_id", "ST-01-ESP32"));
-  savedStationName = cleanString(preferences.getString("station_name", "Stasiun EWS ITERA - ESP32 C3"));
-  savedLat = preferences.getFloat("lat", -5.4267);
-  savedLng = preferences.getFloat("lng", 105.3179);
+  savedSSID       = cleanString(preferences.getString("ssid", ""));
+  savedPass       = cleanString(preferences.getString("pass", ""));
+  savedServerUrl  = preferences.getString("server", savedServerUrl);
+  savedStationId  = preferences.getString("station_id", savedStationId);
+  savedStationName= preferences.getString("station_name", savedStationName);
+  savedLat        = preferences.getFloat("lat", savedLat);
+  savedLng        = preferences.getFloat("lng", savedLng);
+  savedElevation  = preferences.getFloat("elev", savedElevation);
   preferences.end();
 
-  Serial.println("[CONFIG] Stasiun ID : " + savedStationId);
-  Serial.println("[CONFIG] Nama Posko : " + savedStationName);
-  Serial.println("[CONFIG] Endpoint   : " + savedServerUrl);
+  // Kalibrasi MPU6050 saat posisi diam (Baseline)
+  calibrateMPU6050Baseline();
 
-  // 2. Coba koneksi WiFi jika SSID tersimpan ada
+  // Coba hubungkan ke WiFi tersimpan
   if (savedSSID.length() > 0) {
-    Serial.println("[BOOT] Ditemukan WiFi tersimpan: \"" + savedSSID + "\"");
-    Serial.println("[BOOT] Menghubungkan menggunakan driver RF stabil (11dBm)...");
+    Serial.println("[BOOT] Menghubungkan ke WiFi tersimpan: \"" + savedSSID + "\"...");
+    if (lcdAvailable) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Konek WiFi:");
+      lcd.setCursor(0, 1);
+      lcd.print(savedSSID.substring(0, 16));
+    }
 
     bool connected = tryConnectSavedWiFi();
 
     if (connected) {
-      Serial.println("\n========================================================");
-      Serial.println("✅ [SUKSES] ESP32 TERHUBUNG KE JARINGAN WIFI!");
+      Serial.println("\n==================================================");
+      Serial.println("✅ [SUKSES] ESP32 TERHUBUNG KE WIFI!");
       Serial.println("   • SSID       : " + WiFi.SSID());
       Serial.println("   • IP Address : " + WiFi.localIP().toString());
       Serial.println("   • RSSI       : " + String(WiFi.RSSI()) + " dBm");
-      Serial.println("   • Server API : " + savedServerUrl);
-      Serial.println("========================================================\n");
-      // Stop Bluetooth untuk hemat daya saat WiFi aktif
+      Serial.println("==================================================\n");
+
+      if (lcdAvailable) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("WiFi Terhubung!");
+        lcd.setCursor(0, 1);
+        lcd.print(WiFi.localIP().toString());
+        delay(1500);
+      }
+
+      // Bluetooth dimatikan untuk hemat daya & kestabilan RF
       stopBluetooth();
       return;
     } else {
       Serial.println("\n❌ [GAGAL] Tidak dapat terhubung ke WiFi tersimpan.");
-      Serial.println("[INFO] Menyalakan Bluetooth HC-06 untuk konfigurasi ulang...\n");
+      Serial.println("[INFO] Mengaktifkan Bluetooth HC-06 untuk konfigurasi...\n");
     }
   } else {
-    Serial.println("[BOOT] Belum ada konfigurasi WiFi tersimpan di NVS Flash.");
-    Serial.println("[INFO] Menyalakan Bluetooth HC-06...\n");
+    Serial.println("[BOOT] Belum ada konfigurasi WiFi tersimpan.");
+    Serial.println("[INFO] Mengaktifkan Bluetooth HC-06...\n");
   }
 
-  // 3. Hidupkan Bluetooth jika belum terhubung WiFi
+  // Jika belum terkoneksi, aktifkan Bluetooth HC-06
   startBluetooth();
 }
 
 // ==============================================================================
-// 5. LOOP UTAMA (DUAL TASK: TELEMETRI SENSOR + BLUETOOTH CLI)
+// LOOP UTAMA
 // ==============================================================================
+unsigned long lastTelemetryTime = 0;
+const unsigned long TELEMETRY_INTERVAL_MS = 1000; // Kirim tiap 1 detik
+
 void loop() {
-  // A. BACA SENSOR & KIRIM TELEMETRI KE SERVER DJANGO JIKA TERKONEKSI
+  // 1. Baca Sensor Seismik & Fisik Secara Real-Time
+  float gal = 0.0;
+  String mmi = "I (Tidak Terasa)";
+  String dangerScale = "AMAN";
+  float pga = readSeismicPga(gal, mmi, dangerScale);
+
+  String waterStatus = "NORMAL";
+  float waterLevel = readWaterLevel(waterStatus);
+
+  int rainRaw = analogRead(RAIN_ANALOG_PIN);
+  String rainStatus = "Cerah";
+  float rainRate = mapRainfall(rainRaw, rainStatus);
+
+  float ph = 7.2;
+  String waterQuality = "Air Bersih";
+  float tdsPpm = readTdsPpm(ph, waterQuality);
+
+  // 2. Evaluasi Alarm Darurat Lokal (Buzzer & LED)
+  checkEmergencyAlert(pga, waterLevel);
+
+  // 3. Update Tampilan LCD I2C 16x2 (Bergantian tiap 2.5 detik)
+  updateLcdDisplay(pga, gal, mmi, dangerScale, tdsPpm, ph, waterLevel, rainStatus);
+
+  // 4. Kirim Telemetri ke Django Backend Jika WiFi Terkoneksi
   if (WiFi.status() == WL_CONNECTED) {
-    // 1. Baca semua sensor fisik
-    float pga_g = readSeismicPga();
-    float water_level_cm = readWaterLevel();
-    int rain_raw = analogRead(RAIN_ANALOG_PIN);
-    float rain_rate_mmh = mapRainfall(rain_raw);
-    float tds_ppm = readTdsPpm();
-
-    // 2. Evaluasi Ambang Darurat Lokal (Sirine Buzzer & LED)
-    checkEmergencyAlert(pga_g, water_level_cm);
-
-    // 3. Kirim data periodik ke Backend GeoShield
-    if (millis() - lastTelemetryMillis >= TELEMETRY_INTERVAL_MS) {
-      lastTelemetryMillis = millis();
-      sendTelemetryHttp(pga_g, water_level_cm, rain_raw, rain_rate_mmh, tds_ppm);
+    if (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL_MS) {
+      sendTelemetryHttp(pga, gal, mmi, waterLevel, rainRaw, rainRate, tdsPpm, ph);
+      lastTelemetryTime = millis();
     }
   } else {
-    // Jika WiFi terputus saat monitoring, aktifkan kembali Bluetooth HC-06
+    // Jika WiFi offline, pastikan Bluetooth aktif untuk menerima konfigurasi
     if (!isBluetoothActive) {
-      Serial.println("\n⚠️ [WIFI TERPUTUS] Mengaktifkan kembali Bluetooth HC-06...");
       startBluetooth();
     }
   }
 
-  // B. LAYANI INTERAKSI BLUETOOTH HC-06 DARI APLIKASI WEB / HP
-  if (isBluetoothActive) {
-    while (HC06.available()) {
-      char c = (char)HC06.read();
-      Serial.write(c);
-      lastCharTime = millis();
-
-      if (c == '\r' || c == '\n') {
-        if (inputBuffer.length() > 0) {
-          processCommand(cleanString(inputBuffer));
-          inputBuffer = "";
-        }
-      } else {
-        inputBuffer += c;
-      }
-    }
-  }
-
-  // C. LAYANI INPUT SERIAL DARI PC / DEBUGGER
-  while (Serial.available()) {
-    char c = (char)Serial.read();
-    if (isBluetoothActive) HC06.write(c);
+  // 5. Layani Perintah Bluetooth HC-06 & USB Serial
+  while (HC06.available()) {
+    char c = (char)HC06.read();
+    Serial.write(c);
     lastCharTime = millis();
-
     if (c == '\r' || c == '\n') {
       if (inputBuffer.length() > 0) {
         processCommand(cleanString(inputBuffer));
@@ -259,7 +292,20 @@ void loop() {
     }
   }
 
-  // D. AUTO-PROCESS JIKA CLIENT TIDAK MENGIRIM NEWLINE
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (isBluetoothActive) HC06.write(c);
+    lastCharTime = millis();
+    if (c == '\r' || c == '\n') {
+      if (inputBuffer.length() > 0) {
+        processCommand(cleanString(inputBuffer));
+        inputBuffer = "";
+      }
+    } else {
+      inputBuffer += c;
+    }
+  }
+
   if (inputBuffer.length() > 0 && (millis() - lastCharTime > BUFFER_TIMEOUT_MS)) {
     processCommand(cleanString(inputBuffer));
     inputBuffer = "";
@@ -269,41 +315,61 @@ void loop() {
 }
 
 // ==============================================================================
-// 6. INISIALISASI & PEMBACAAN SENSOR FISIK
+// 6. SENSOR MPU-6050: SUPER STABIL & DEADBAND NOISE FILTER
 // ==============================================================================
-void initSensors() {
-  pinMode(HC_TRIG_PIN, OUTPUT);
-  pinMode(HC_ECHO_PIN, INPUT);
-  pinMode(RAIN_ANALOG_PIN, INPUT);
-  pinMode(TDS_ANALOG_PIN, INPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(LED_STATUS_PIN, OUTPUT);
-
-  digitalWrite(BUZZER_PIN, LOW);
-  digitalWrite(LED_STATUS_PIN, LOW);
-
-  // Inisialisasi I2C Bus untuk MPU-6050
-  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-  initMPU6050();
-}
-
 void initMPU6050() {
   Wire.beginTransmission(MPU6050_ADDR);
   Wire.write(MPU6050_PWR_MGMT_1);
-  Wire.write(0x00); // Bangunkan MPU6050 dari sleep mode
+  Wire.write(0x00); // Wake up MPU6050
   byte status = Wire.endTransmission();
 
   if (status == 0) {
     mpuAvailable = true;
-    Serial.println("[MPU6050] Sensor Seismik I2C Terhubung & Siap!");
+    Serial.println("✅ [MPU-6050] Sensor Seismik I2C Terhubung & Aktif!");
   } else {
     mpuAvailable = false;
-    Serial.println("[MPU6050] Gagal terhubung via I2C. Periksa kabel SDA/SCL.");
+    Serial.println("⚠️ [MPU-6050] Gagal terhubung via I2C. Periksa kabel SDA/SCL.");
   }
 }
 
-float readSeismicPga() {
-  if (!mpuAvailable) return 0.002;
+void calibrateMPU6050Baseline() {
+  if (!mpuAvailable) return;
+  Serial.println("[MPU-6050] Memulai kalibrasi baseline getaran (jangan goyang alat)...");
+  
+  float sumX = 0, sumY = 0, sumZ = 0;
+  const int SAMPLES = 60;
+  
+  for (int i = 0; i < SAMPLES; i++) {
+    Wire.beginTransmission(MPU6050_ADDR);
+    Wire.write(MPU6050_ACCEL_XOUT_H);
+    Wire.endTransmission(false);
+    Wire.requestFrom((uint8_t)MPU6050_ADDR, (size_t)6, true);
+
+    if (Wire.available() >= 6) {
+      int16_t rawX = Wire.read() << 8 | Wire.read();
+      int16_t rawY = Wire.read() << 8 | Wire.read();
+      int16_t rawZ = Wire.read() << 8 | Wire.read();
+      sumX += (float)rawX / 16384.0;
+      sumY += (float)rawY / 16384.0;
+      sumZ += (float)rawZ / 16384.0;
+    }
+    delay(15);
+  }
+
+  baseAccelX = sumX / SAMPLES;
+  baseAccelY = sumY / SAMPLES;
+  baseAccelZ = sumZ / SAMPLES;
+
+  Serial.println("✅ [MPU-6050] Kalibrasi Selesai. Baseline Z = " + String(baseAccelZ, 4) + "g");
+}
+
+float readSeismicPga(float &outGal, String &outMmi, String &outDangerScale) {
+  if (!mpuAvailable) {
+    outGal = 0.0;
+    outMmi = "I (Tidak Terasa)";
+    outDangerScale = "AMAN";
+    return 0.0;
+  }
 
   Wire.beginTransmission(MPU6050_ADDR);
   Wire.write(MPU6050_ACCEL_XOUT_H);
@@ -315,52 +381,175 @@ float readSeismicPga() {
     int16_t rawY = Wire.read() << 8 | Wire.read();
     int16_t rawZ = Wire.read() << 8 | Wire.read();
 
-    // Sensitivitas skala default +/- 2g = 16384 LSB/g
-    float ax = (float)rawX / 16384.0;
-    float ay = (float)rawY / 16384.0;
-    float az = (float)rawZ / 16384.0;
+    float ax = (float)rawX / 16384.0 - baseAccelX;
+    float ay = (float)rawY / 16384.0 - baseAccelY;
+    float az = (float)rawZ / 16384.0 - baseAccelZ;
 
-    // Vektor akselerasi getaran dinamis tanpa gravitasi statis (az - 1.0g)
-    float dynamicPga = sqrt(ax * ax + ay * ay + (az - 1.0) * (az - 1.0));
-    return dynamicPga;
+    // Hitung magnitudo vektor percepatan dinamis
+    float instantPga = sqrt(ax * ax + ay * ay + az * az);
+
+    // FITUR REQUEST: Deadband filter getaran minim (noise meja/kaki tetap membaca 0)
+    if (instantPga < SEISMIC_NOISE_DEADBAND_G) {
+      instantPga = 0.0;
+    }
+
+    // Filter Exponential Smoothing untuk stabilitas tinggi
+    currentFilteredPga = (SEISMIC_ALPHA_FILTER * instantPga) + ((1.0 - SEISMIC_ALPHA_FILTER) * currentFilteredPga);
+    if (currentFilteredPga < 0.003) currentFilteredPga = 0.0;
+
+    // Hitung Akselerasi Gal (1 g = 980.665 cm/s²)
+    outGal = currentFilteredPga * 980.665;
+
+    // Klasifikasi Skala MMI & Tingkat Bahaya Gempa
+    if (outGal < 1.4) {
+      outMmi = "I (Tidak Terasa)";
+      outDangerScale = "AMAN";
+    } else if (outGal < 9.0) {
+      outMmi = "II - III (Getaran Ringan)";
+      outDangerScale = "WASPADA";
+    } else if (outGal < 30.0) {
+      outMmi = "IV - V (Sedang / Nyata)";
+      outDangerScale = "SIAGA";
+    } else {
+      outMmi = "VI+ (Kuat / Merusak)";
+      outDangerScale = "BAHAYA";
+    }
+
+    return currentFilteredPga;
   }
-  return 0.002;
+
+  return 0.0;
 }
 
-float readWaterLevel() {
+// ==============================================================================
+// 7. SENSOR TDS & pH AIR REAL-TIME
+// ==============================================================================
+float readTdsPpm(float &outPh, String &outWaterQuality) {
+  int rawTds = analogRead(TDS_ANALOG_PIN);
+  float voltage = (rawTds / 4095.0) * 3.3; // ADC ESP32
+
+  // Formula konversi tegangan ke partikel terlarut PPM
+  float tdsPpm = (133.42 * voltage * voltage * voltage - 255.86 * voltage * voltage + 857.39 * voltage) * 0.5;
+  if (tdsPpm < 0) tdsPpm = 0;
+
+  // Estimasi parameter pH korelasi konduktivitas air
+  outPh = 7.3 - ((tdsPpm - 120.0) / 1000.0) * 1.6;
+  if (outPh < 4.5) outPh = 4.5;
+  if (outPh > 9.0) outPh = 9.0;
+
+  // Klasifikasi Kondisi Air Real-Time
+  if (tdsPpm <= 50) {
+    outWaterQuality = "Air Minum Murni (Sangat Bersih)";
+  } else if (tdsPpm <= 300) {
+    outWaterQuality = "Air Bersih Standar PDAM (Layak)";
+  } else if (tdsPpm <= 600) {
+    outWaterQuality = "Air Tercemar Sedang";
+  } else if (tdsPpm <= 1000) {
+    outWaterQuality = "Air Tercemar Berat";
+  } else {
+    outWaterQuality = "Air Keruh / Lumpur Banjir (Bahaya)";
+  }
+
+  return tdsPpm;
+}
+
+// ==============================================================================
+// 8. SENSOR HUJAN & WATER LEVEL (BANJIR)
+// ==============================================================================
+float mapRainfall(int rawAnalog, String &outRainStatus) {
+  // Sensor FC-37: 4095 (Kering) -> 0 (Basah lebat)
+  if (rawAnalog >= 4000) {
+    outRainStatus = "Cerah / Kering";
+    return 0.0;
+  }
+
+  float rainRate = ((4095.0 - (float)rawAnalog) / 4095.0) * 80.0; // mm/jam
+  if (rainRate < 2.5) {
+    outRainStatus = "Hujan Rintik-Rintik";
+  } else if (rainRate < 15.0) {
+    outRainStatus = "Hujan Sedang";
+  } else if (rainRate < 50.0) {
+    outRainStatus = "Hujan Lebat (Waspada)";
+  } else {
+    outRainStatus = "Hujan Sangat Ekstrem (Bahaya Banjir)";
+  }
+
+  return rainRate;
+}
+
+float readWaterLevel(String &outWaterStatus) {
   digitalWrite(HC_TRIG_PIN, LOW);
   delayMicroseconds(2);
   digitalWrite(HC_TRIG_PIN, HIGH);
   delayMicroseconds(10);
   digitalWrite(HC_TRIG_PIN, LOW);
 
-  long duration = pulseIn(HC_ECHO_PIN, HIGH, 30000); // 30ms timeout
+  long duration = pulseIn(HC_ECHO_PIN, HIGH, 25000); // 25ms timeout
   if (duration == 0) return 0.0;
 
-  // Kecepatan suara ~0.0343 cm/us
-  float distance_sensor_to_water = (duration * 0.0343) / 2.0;
-  float water_level_cm = DISTANCE_TO_RIVER_BED_CM - distance_sensor_to_water;
-  if (water_level_cm < 0) water_level_cm = 0.0;
+  float distance = (duration * 0.0343) / 2.0;
+  float levelCm = DISTANCE_TO_RIVER_BED_CM - distance;
+  if (levelCm < 0) levelCm = 0.0;
 
-  return water_level_cm;
+  if (levelCm >= THRESHOLD_WATER_DANGER) {
+    outWaterStatus = "BAHAYA (AWAS)";
+  } else if (levelCm >= THRESHOLD_WATER_WARNING) {
+    outWaterStatus = "SIAGA BANJIR";
+  } else if (levelCm >= 70.0) {
+    outWaterStatus = "WASPADA";
+  } else {
+    outWaterStatus = "NORMAL";
+  }
+
+  return levelCm;
 }
 
-float mapRainfall(int rawAnalog) {
-  // ADC ESP32: 4095 (Kering) -> 0 (Basah lebat)
-  if (rawAnalog >= 4000) return 0.0;
-  float rainRate = ((4095.0 - (float)rawAnalog) / 4095.0) * 100.0; // mm/jam
-  return rainRate;
+// ==============================================================================
+// 9. UPDATE TAMPILAN LCD I2C 16x2
+// ==============================================================================
+void updateLcdDisplay(float pga, float gal, String mmi, String dangerScale, float tds, float ph, float waterLevel, String rainStatus) {
+  if (!lcdAvailable) return;
+
+  // Ganti halaman tiap 2.5 detik
+  if (millis() - lastLcdSwitchTime > 2500) {
+    currentLcdPage = (currentLcdPage + 1) % 2;
+    lastLcdSwitchTime = millis();
+    lcd.clear();
+  }
+
+  if (currentLcdPage == 0) {
+    // Halaman 1: Pemantauan Gempa Seismik
+    lcd.setCursor(0, 0);
+    lcd.print("GEMPA: ");
+    lcd.print(pga, 3);
+    lcd.print("g [");
+    lcd.print(dangerScale.substring(0, 4));
+    lcd.print("]");
+
+    lcd.setCursor(0, 1);
+    lcd.print("GAL:");
+    lcd.print(gal, 1);
+    lcd.print(" MMI:");
+    lcd.print(mmi.substring(0, 4));
+  } else {
+    // Halaman 2: Pemantauan Kualitas Air & Hujan
+    lcd.setCursor(0, 0);
+    lcd.print("AIR:");
+    lcd.print((int)tds);
+    lcd.print("ppm pH:");
+    lcd.print(ph, 1);
+
+    lcd.setCursor(0, 1);
+    lcd.print("LVL:");
+    lcd.print(waterLevel, 0);
+    lcd.print("cm ");
+    lcd.print(rainStatus.substring(0, 7));
+  }
 }
 
-float readTdsPpm() {
-  int rawTds = analogRead(TDS_ANALOG_PIN);
-  float voltage = (rawTds / 4095.0) * 3.3; // Tegangan ESP32 ADC
-  // Rumus kalibrasi sensor analog TDS V1.0
-  float tdsPpm = (133.42 * voltage * voltage * voltage - 255.86 * voltage * voltage + 857.39 * voltage) * 0.5;
-  if (tdsPpm < 0) tdsPpm = 0;
-  return tdsPpm;
-}
-
+// ==============================================================================
+// 10. ALARM DARURAT
+// ==============================================================================
 void checkEmergencyAlert(float pga, float waterLevel) {
   bool isEmergency = (pga >= THRESHOLD_PGA_DANGER || waterLevel >= THRESHOLD_WATER_DANGER);
   if (isEmergency) {
@@ -373,39 +562,36 @@ void checkEmergencyAlert(float pga, float waterLevel) {
 }
 
 // ==============================================================================
-// 7. PENGIRIMAN TELEMETRI HTTP REST API (DJANGO BACKEND)
+// 11. PENGIRIMAN TELEMETRI HTTP POST KE DJANGO BACKEND
 // ==============================================================================
-void sendTelemetryHttp(float pga, float waterLevel, int rainRaw, float rainRate, float tds) {
+void sendTelemetryHttp(float pga, float gal, String mmi, float waterLevel, int rainRaw, float rainRate, float tds, float ph) {
   if (WiFi.status() != WL_CONNECTED || savedServerUrl.length() == 0) return;
 
   HTTPClient http;
   http.begin(savedServerUrl);
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(3000);
+  http.setTimeout(2500);
 
-  // Buat Payload JSON standar yang dikenali Django views.py
   String json = "{";
   json += "\"station_id\":\"" + savedStationId + "\",";
   json += "\"station_name\":\"" + savedStationName + "\",";
-  json += "\"location\":{\"lat\":" + String(savedLat, 6) + ",\"lng\":" + String(savedLng, 6) + "},";
-  json += "\"seismic\":{\"pga\":" + String(pga, 4) + "},";
+  json += "\"location\":{\"lat\":" + String(savedLat, 6) + ",\"lng\":" + String(savedLng, 6) + ",\"elevation\":" + String(savedElevation, 1) + "},";
+  json += "\"seismic\":{\"pga\":" + String(pga, 4) + ",\"gal\":" + String(gal, 2) + ",\"mmi\":\"" + mmi + "\"},";
   json += "\"flood\":{\"waterLevelCm\":" + String(waterLevel, 1) + "},";
   json += "\"rain\":{\"rawAnalog\":" + String(rainRaw) + ",\"rateMmh\":" + String(rainRate, 1) + "},";
-  json += "\"tds\":{\"ppm\":" + String(tds, 1) + "}";
+  json += "\"water_quality\":{\"tds_ppm\":" + String(tds, 1) + ",\"ph\":" + String(ph, 1) + "}";
   json += "}";
 
-  int httpCode = http.POST(json);
-  if (httpCode == HTTP_CODE_CREATED || httpCode == HTTP_CODE_OK) {
-    // Sukses kirim telemetri
-    // Serial.println("📡 [TELEMETRI OK] POST berhasil.");
-  } else {
-    Serial.println("⚠️ [TELEMETRI ERROR] Kode HTTP: " + String(httpCode) + " ke " + savedServerUrl);
+  int code = http.POST(json);
+  if (code != HTTP_CODE_OK && code != HTTP_CODE_CREATED) {
+    // Log error jika gagal
+    // Serial.println("⚠️ HTTP Telemetry Error: " + String(code));
   }
   http.end();
 }
 
 // ==============================================================================
-// 8. DRIVER WIFI STABIL (11dBm TX POWER TEMPLATE)
+// 12. KONEKSI WIFI & BLUETOOTH PROVISIONING (HC-06)
 // ==============================================================================
 bool tryConnectSavedWiFi() {
   if (savedSSID.length() == 0) return false;
@@ -419,7 +605,7 @@ bool tryConnectSavedWiFi() {
   WiFi.setSleep(false);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
-  WiFi.setTxPower(WIFI_POWER_11dBm); // Mencegah lonjakan daya RF / Brownout
+  WiFi.setTxPower(WIFI_POWER_11dBm); // Mencegah lonjakan daya RF / Brownout pada ESP32-C3
 
   if (savedPass.length() > 0) {
     WiFi.begin(savedSSID.c_str(), savedPass.c_str());
@@ -428,27 +614,18 @@ bool tryConnectSavedWiFi() {
   }
 
   unsigned long startAttempt = millis();
-  unsigned long dotTimer = millis();
-
-  // Tunggu hingga 12 detik
   while (millis() - startAttempt < 12000) {
     if (WiFi.status() == WL_CONNECTED) {
       return true;
     }
-    if (millis() - dotTimer > 400) {
-      Serial.print(".");
-      if (isBluetoothActive) HC06.print(".");
-      dotTimer = millis();
-    }
-    delay(50);
+    Serial.print(".");
+    if (isBluetoothActive) HC06.print(".");
+    delay(400);
   }
 
   return (WiFi.status() == WL_CONNECTED);
 }
 
-// ==============================================================================
-// 9. KENDALI BLUETOOTH HC-06 (HIDUP / MATI)
-// ==============================================================================
 void startBluetooth() {
   if (isBluetoothActive) return;
 
@@ -459,16 +636,12 @@ void startBluetooth() {
 
   delay(200);
 
-  printlnBoth("\r\n========================================================");
-  printlnBoth("📶 [BLUETOOTH HC-06 AKTIF] SIAP MENERIMA KONFIGURASI");
-  printlnBoth("========================================================");
-  if (savedSSID.length() > 0) {
-    printlnBoth("⚠️ Status: KONEKSI KE \"" + savedSSID + "\" GAGAL / TERPUTUS.");
-    printlnBoth("👉 Ketik 'masukan wifi' untuk mengganti password/SSID.");
-  } else {
-    printlnBoth("👉 Ketik 'masukan wifi' atau 'menu' untuk membuka form setup.");
-  }
-  printlnBoth("========================================================\r\n");
+  printlnBoth("\r\n==========================================");
+  printlnBoth("📶 [BLUETOOTH AKTIF] PROVISIONING ESP32-C3");
+  printlnBoth("==========================================");
+  printlnBoth("👉 Ketik 'set:NamaWiFi,PasswordWiFi' atau");
+  printlnBoth("   ketik 'menu' untuk membuka form setup.");
+  printlnBoth("==========================================\r\n");
 }
 
 void stopBluetooth() {
@@ -476,27 +649,19 @@ void stopBluetooth() {
   HC06.flush();
   HC06.end();
   isBluetoothActive = false;
-  Serial.println(F("[BLUETOOTH] Modul HC-06 Dinonaktifkan (Mode Hemat Daya & Bebas Interferensi)."));
+  Serial.println(F("[BLUETOOTH] Modul HC-06 Dinonaktifkan (Hemat Daya & Bebas Interferensi)."));
 }
 
-// ==============================================================================
-// 10. PEMBERSIH STRING TERSEMBUNYI (CR/LF/SPASI)
-// ==============================================================================
 String cleanString(String raw) {
   String cleaned = "";
   for (unsigned int i = 0; i < raw.length(); i++) {
     char c = raw.charAt(i);
-    if (c >= 32 && c <= 126) {
-      cleaned += c;
-    }
+    if (c >= 32 && c <= 126) cleaned += c;
   }
   cleaned.trim();
   return cleaned;
 }
 
-// ==============================================================================
-// 11. PENGOLAHAN COMMAND & LOGIN VIA BLUETOOTH / SERIAL
-// ==============================================================================
 void processCommand(String input) {
   input = cleanString(input);
   if (input.length() == 0) return;
@@ -506,12 +671,8 @@ void processCommand(String input) {
 
   switch (currentState) {
     case STATE_NORMAL: {
-      if (lower.indexOf("wifi") != -1 || lower.indexOf("menu") != -1 || 
-          lower.indexOf("masuk") != -1 || lower.indexOf("login") != -1 || 
-          lower == "1" || lower == "help") {
-        showMainMenu();
-      } else if (lower.startsWith("set:")) {
-        // Format Pintas: set:NamaWiFi,PasswordWiFi
+      if (lower.startsWith("set:")) {
+        // Format Ringkas: set:NamaWiFi,PasswordWiFi
         int commaIndex = input.indexOf(',');
         if (commaIndex != -1) {
           String s = cleanString(input.substring(4, commaIndex));
@@ -520,189 +681,108 @@ void processCommand(String input) {
         } else {
           printlnBoth("\r\n[ERROR] Format salah! Gunakan: set:NamaWiFi,PasswordWiFi\r\n");
         }
-      } else if (lower.startsWith("server:")) {
-        // Format Pintas Ubah Server: server:http://192.168.1.50:8000/api/telemetry/
-        String newUrl = cleanString(input.substring(7));
-        if (newUrl.length() > 5) {
-          preferences.begin("geoshield-cfg", false);
-          preferences.putString("server_url", newUrl);
-          preferences.end();
-          savedServerUrl = newUrl;
-          printlnBoth("\r\n✅ [SERVER URL DISIMPAN]: " + savedServerUrl + "\r\n");
-        } else {
-          printlnBoth("\r\n[ERROR] Format URL salah!\r\n");
-        }
-      } else if (lower == "sensor" || lower == "read" || lower == "baca") {
-        printAllSensorReadings();
+      } else if (lower.indexOf("wifi") != -1 || lower.indexOf("menu") != -1 || lower == "1") {
+        showMainMenu();
       } else if (lower == "restart" || lower == "reboot") {
-        printlnBoth("\r\n[INFO] Merestart ESP32...");
+        printlnBoth("\r\n[INFO] Merestart ESP32-C3...");
         delay(1000);
         ESP.restart();
+      } else if (lower == "status" || lower == "2") {
+        printlnBoth("\r\n📊 STATUS SISTEM ESP32-C3:");
+        printlnBoth("   • WiFi SSID  : " + (savedSSID.length() > 0 ? savedSSID : "[Belum Ada]"));
+        printlnBoth("   • IP Address : " + (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Offline"));
+        printlnBoth("   • Posko      : " + savedStationName + " (" + String(savedElevation) + " mdpl)");
+        printlnBoth("   • Endpoint   : " + savedServerUrl);
       } else {
         printlnBoth("\r\n[?] Perintah diterima: \"" + input + "\"");
-        printlnBoth("💡 Ketik 'masukan wifi' atau 'menu' untuk membuka menu interaktif.\r\n");
+        printlnBoth("💡 Ketik 'set:NamaWiFi,Password' atau 'menu' untuk mengatur WiFi.\r\n");
       }
       break;
     }
 
     case STATE_MENU: {
-      if (input == "1" || lower.indexOf("masuk") != -1 || lower.indexOf("wifi") != -1) {
+      if (input == "1" || lower.indexOf("wifi") != -1) {
         currentState = STATE_INPUT_SSID;
-        printlnBoth("\r\n--------------------------------------------------------");
-        printlnBoth("🔑 [HALAMAN LOGIN WIFI ESP32]");
-        printlnBoth("--------------------------------------------------------");
-        printlnBoth("Langkah 1/2: Masukkan Nama WiFi (SSID):");
+        printlnBoth("\r\n🔑 Masukkan Nama WiFi (SSID):");
         printBoth("SSID -> ");
-      } else if (input == "2" || lower.indexOf("status") != -1) {
-        printlnBoth("\r\n--------------------------------------------------------");
-        printlnBoth("📊 STATUS PROFIL STASIUN & KONEKSI:");
-        printlnBoth("   • Stasiun ID     : " + savedStationId);
-        printlnBoth("   • Nama Posko     : " + savedStationName);
-        printlnBoth("   • Koordinat      : " + String(savedLat, 6) + ", " + String(savedLng, 6));
-        printlnBoth("   • SSID Tersimpan : " + (savedSSID.length() > 0 ? savedSSID : "[Belum Ada]"));
-        printlnBoth("   • Status WiFi    : " + String(WiFi.status() == WL_CONNECTED ? "TERHUBUNG 🟢" : "TERPUTUS 🔴"));
-        if (WiFi.status() == WL_CONNECTED) {
-          printlnBoth("   • IP Address     : " + WiFi.localIP().toString());
-          printlnBoth("   • RSSI Sinyal    : " + String(WiFi.RSSI()) + " dBm");
-        }
-        printlnBoth("   • Server API URL : " + savedServerUrl);
-        printlnBoth("--------------------------------------------------------\r\n");
-        showMainMenu();
-      } else if (input == "3" || lower.indexOf("server") != -1) {
-        currentState = STATE_INPUT_SERVER;
-        printlnBoth("\r\n--------------------------------------------------------");
-        printlnBoth("🌐 [ATUR URL ENDPOINT SERVER DJANGO]");
-        printlnBoth("--------------------------------------------------------");
-        printlnBoth("URL Saat ini: " + savedServerUrl);
-        printlnBoth("Masukkan URL baru (contoh: http://192.168.1.50:8000/api/telemetry/):");
-        printBoth("URL -> ");
-      } else if (input == "4" || lower.indexOf("sensor") != -1) {
-        printAllSensorReadings();
-        showMainMenu();
-      } else if (input == "5" || lower.indexOf("hapus") != -1 || lower.indexOf("reset") != -1) {
+      } else if (input == "2") {
+        currentState = STATE_NORMAL;
+        printlnBoth("\r\n📊 Status WiFi: " + String(WiFi.status() == WL_CONNECTED ? "TERHUBUNG 🟢" : "OFFLINE 🔴"));
+      } else if (input == "3") {
         preferences.begin("geoshield-cfg", false);
-        preferences.remove("ssid");
-        preferences.remove("pass");
+        preferences.clear();
         preferences.end();
         savedSSID = "";
         savedPass = "";
-        printlnBoth("\r\n[SUCCESS] Kredensial WiFi berhasil dihapus!");
-        showMainMenu();
-      } else if (input == "6" || lower.indexOf("restart") != -1) {
+        printlnBoth("\r\n[OK] Kredensial WiFi berhasil dihapus!");
+        currentState = STATE_NORMAL;
+      } else if (input == "4") {
         printlnBoth("\r\n[INFO] Merestart ESP32...");
         delay(1000);
         ESP.restart();
-      } else {
-        printlnBoth("[!] Pilihan tidak valid. Silakan ketik angka 1 sampai 6.");
       }
       break;
     }
 
     case STATE_INPUT_SSID: {
-      tempSSID = cleanString(input);
+      String tempSSID = cleanString(input);
       currentState = STATE_INPUT_PASS;
-      printlnBoth("\r\n✅ [SSID DITERIMA]: \"" + tempSSID + "\"");
-      printlnBoth("Langkah 2/2: Masukkan Password WiFi (Ketik 'none' jika tanpa password):");
+      printlnBoth("\r\n✅ SSID: \"" + tempSSID + "\"");
+      printlnBoth("Masukkan Password WiFi (Ketik 'none' jika tanpa sandi):");
       printBoth("Password -> ");
       break;
     }
 
     case STATE_INPUT_PASS: {
-      tempPass = cleanString(input);
-      if (tempPass.equalsIgnoreCase("none") || tempPass.equalsIgnoreCase("kosong") || tempPass == "-") {
-        tempPass = "";
-      }
-
+      String tempPass = cleanString(input);
+      if (tempPass.equalsIgnoreCase("none")) tempPass = "";
       currentState = STATE_NORMAL;
-      saveAndRestart(tempSSID, tempPass);
-      break;
-    }
-
-    case STATE_INPUT_SERVER: {
-      String newServer = cleanString(input);
-      if (newServer.length() > 5) {
-        preferences.begin("geoshield-cfg", false);
-        preferences.putString("server_url", newServer);
-        preferences.end();
-        savedServerUrl = newServer;
-        printlnBoth("\r\n✅ [BERHASIL] URL Server disimpan: " + savedServerUrl);
-      } else {
-        printlnBoth("\r\n[!] Input tidak valid. URL server tidak diubah.");
-      }
-      currentState = STATE_NORMAL;
-      showMainMenu();
+      saveAndRestart(savedSSID, tempPass);
       break;
     }
   }
 }
 
-// ==============================================================================
-// 12. CETAK BACAAN LIVE SENSOR KE BLUETOOTH & SERIAL
-// ==============================================================================
-void printAllSensorReadings() {
-  float pga = readSeismicPga();
-  float water = readWaterLevel();
-  int rainRaw = analogRead(RAIN_ANALOG_PIN);
-  float rainRate = mapRainfall(rainRaw);
-  float tds = readTdsPpm();
-
-  printlnBoth("\r\n========================================================");
-  printlnBoth("📈 LIVE TELEMETRI MULTI-SENSOR FISIK ESP32:");
-  printlnBoth("   • Gempa / PGA Seismik : " + String(pga, 4) + " g (" + String(pga * 980.665, 2) + " Gal)");
-  printlnBoth("   • Ketinggian Air Banjir: " + String(water, 1) + " cm");
-  printlnBoth("   • Curah Hujan (Rain)  : " + String(rainRate, 1) + " mm/jam (ADC: " + String(rainRaw) + ")");
-  printlnBoth("   • Kualitas Air (TDS)  : " + String(tds, 1) + " ppm");
-  printlnBoth("   • Sirine EWS Lokal    : " + String((pga >= THRESHOLD_PGA_DANGER || water >= THRESHOLD_WATER_DANGER) ? "🚨 BUNYI AKTIF!" : "AMAN (SIAGA)"));
-  printlnBoth("========================================================\r\n");
-}
-
-// ==============================================================================
-// 13. SIMPAN KE FLASH NVS & RESTART OTOMATIS
-// ==============================================================================
 void saveAndRestart(String ssid, String pass) {
-  printlnBoth("\r\n========================================================");
-  printlnBoth("📋 KONFIRMASI PENYIMPANAN KREDENSIAL WIFI:");
+  printlnBoth("\r\n==========================================");
+  printlnBoth("💾 MENYIMPAN KREDENSIAL WIFI KE FLASH NVS:");
   printlnBoth("   • SSID     : [" + ssid + "]");
-  printlnBoth("   • Password : " + (pass.length() > 0 ? "******** (" + String(pass.length()) + " karakter)" : "[Tanpa Password]"));
-  printlnBoth("========================================================");
-  printlnBoth("💾 Menyimpan kredensial ke Flash NVS ESP32...");
+  printlnBoth("   • Password : " + (pass.length() > 0 ? "********" : "[Tanpa Sandi]"));
+  printlnBoth("==========================================");
 
-  // Simpan ke Flash Preferences
   preferences.begin("geoshield-cfg", false);
   preferences.putString("ssid", ssid);
   preferences.putString("pass", pass);
   preferences.end();
 
   printlnBoth("✅ [BERHASIL DISIMPAN]");
-  printlnBoth("🔄 ESP32 akan merestart otomatis dalam 2 detik untuk menghubungkan WiFi...");
-  printlnBoth("📡 Bluetooth HC-06 akan otomatis dinonaktifkan saat WiFi terkoneksi.");
-  printlnBoth("========================================================\r\n");
+  printlnBoth("🔄 ESP32-C3 akan merestart otomatis dalam 2 detik untuk menghubungkan ke WiFi...");
+
+  if (lcdAvailable) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Disimpan!");
+    lcd.setCursor(0, 1);
+    lcd.print("Rebooting ESP...");
+  }
 
   delay(2000);
-  ESP.restart(); // Restart ESP32 otomatis
+  ESP.restart(); // Auto-restart
 }
 
-// ==============================================================================
-// 14. TAMPILAN MENU UTAMA
-// ==============================================================================
 void showMainMenu() {
   currentState = STATE_MENU;
-  printlnBoth("\r\n========================================================");
-  printlnBoth("        📶 MENU PENGATURAN GEOSHIELD EWS ESP32        ");
-  printlnBoth("========================================================");
-  printlnBoth(" [1] 🔑 Masukkan Nama WiFi & Password Baru");
-  printlnBoth(" [2] 📊 Cek Status & Profil Koneksi Saat Ini");
-  printlnBoth(" [3] 🌐 Atur URL Endpoint Server Dashboard Django");
-  printlnBoth(" [4] 📈 Baca Live Telemetri Semua Sensor Fisik");
-  printlnBoth(" [5] 🗑️  Hapus Data WiFi Tersimpan (Reset)");
-  printlnBoth(" [6] 🔄 Restart ESP32");
-  printlnBoth("========================================================");
-  printBoth("Pilih opsi (1-6) -> ");
+  printlnBoth("\r\n==========================================");
+  printlnBoth("      📶 MENU SETUP WIFI ESP32-C3         ");
+  printlnBoth("==========================================");
+  printlnBoth(" [1] 🔑 Input Nama WiFi (SSID) & Password");
+  printlnBoth(" [2] 📊 Cek Status Koneksi Saat Ini");
+  printlnBoth(" [3] 🗑️  Reset Kredensial WiFi Tersimpan");
+  printlnBoth(" [4] 🔄 Restart ESP32");
+  printlnBoth("==========================================");
+  printBoth("Pilih nomor (1-4) -> ");
 }
 
-// ==============================================================================
-// 15. HELPER DUAL OUTPUT (SERIAL & BLUETOOTH)
-// ==============================================================================
 void printBoth(String msg) {
   Serial.print(msg);
   if (isBluetoothActive) HC06.print(msg);
