@@ -4,7 +4,7 @@
 [![Framework: Django 5](https://img.shields.io/badge/Backend-Django%205.x%20%7C%20DRF-092e20.svg)](geoshield/)
 [![Platform](https://img.shields.io/badge/GIS-Google%20Maps%20%7C%20Leaflet-blue.svg)](static/)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32%20%7C%20ESP32--C3-emerald.svg)](firmware/)
-[![Status](https://img.shields.io/badge/Status-Online%20%7C%20Production%20Ready-success.svg)](https://lopez-holes-permits-fancy.trycloudflare.com)
+[![Status](https://img.shields.io/badge/Status-Online%20%7C%20Production%20Ready-success.svg)](https://economy-disposition-cartoon-rows.trycloudflare.com)
 
 ---
 
@@ -12,11 +12,12 @@
 
 | Layanan | Link Akses | Keterangan |
 |---|---|---|
-| **🌍 Web Publik Online (HTTPS)** | **[https://lopez-holes-permits-fancy.trycloudflare.com](https://lopez-holes-permits-fancy.trycloudflare.com)** | Langsung aktif & bisa dibuka dosen / publik |
+| **🌍 Web Django Live Online (HTTPS)** | **[https://economy-disposition-cartoon-rows.trycloudflare.com](https://economy-disposition-cartoon-rows.trycloudflare.com)** | Langsung aktif & bisa dibuka dosen / publik |
+| **🌐 Web Frontend GitHub Pages** | **[https://zanxjav.github.io/pendeteksi-gempa-ews/](https://zanxjav.github.io/pendeteksi-gempa-ews/)** | Web PWA Client statis langsung online |
 | **🚀 1-Click Cloud Hosting (Render)** | **[Deploy to Render](https://render.com/deploy?repo=https://github.com/zanxjav/pendeteksi-gempa-ews)** | Otomatis deploy 24/7 cloud dari GitHub |
-| **📱 1-Click Download APK Android** | **[Generate APK via PWABuilder](https://www.pwabuilder.com/reportcard?site=https://lopez-holes-permits-fancy.trycloudflare.com)** | Paket installer `.apk` siap kirim ke dosen |
-| **📡 Endpoint REST API ESP32** | **`https://lopez-holes-permits-fancy.trycloudflare.com/api/telemetry/`** | Target pengiriman data sensor mikrokontroler |
-| **🔑 Admin Panel Django** | **[https://lopez-holes-permits-fancy.trycloudflare.com/admin/](https://lopez-holes-permits-fancy.trycloudflare.com/admin/)** | Kelola stasiun & log data (user: `admin`, pass: `admin123`) |
+| **📱 1-Click Download APK Android** | **[Generate APK via PWABuilder](https://www.pwabuilder.com/reportcard?site=https://economy-disposition-cartoon-rows.trycloudflare.com)** | Paket installer `.apk` siap kirim ke dosen |
+| **📡 Endpoint REST API ESP32** | **`https://economy-disposition-cartoon-rows.trycloudflare.com/api/telemetry/`** | Target pengiriman data sensor mikrokontroler |
+| **🔑 Admin Panel Django** | **[https://economy-disposition-cartoon-rows.trycloudflare.com/admin/](https://economy-disposition-cartoon-rows.trycloudflare.com/admin/)** | Kelola stasiun & log data (user: `admin`, pass: `admin123`) |
 
 ---
 
