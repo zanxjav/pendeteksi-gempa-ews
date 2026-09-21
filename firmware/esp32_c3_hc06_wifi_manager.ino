@@ -781,7 +781,7 @@ void processCommand(String input) {
         printlnBoth("\r\n📊 STATUS SISTEM ESP32-C3:");
         printlnBoth("   • WiFi SSID  : " + getActiveSSID());
         printlnBoth("   • WiFi State : " + wifiStatus(WiFi.status()));
-        printlnBoth("   • IP Address : " + (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "Offline"));
+        printlnBoth("   • IP Address : " + (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String("Offline")));
         printlnBoth("   • Posko      : " + savedStationName + " (" + String(savedElevation) + " mdpl)");
         printlnBoth("   • Endpoint   : " + savedServerUrl);
       } else {
@@ -839,7 +839,7 @@ void saveAndRestart(String ssid, String pass) {
   printlnBoth("\r\n==========================================");
   printlnBoth("💾 MENYIMPAN KREDENSIAL WIFI KE FLASH NVS:");
   printlnBoth("   • SSID     : [" + ssid + "]");
-  printlnBoth("   • Password : " + (pass.length() > 0 ? "********" : "[Tanpa Sandi]"));
+  printlnBoth("   • Password : " + String(pass.length() > 0 ? "********" : "[Tanpa Sandi]"));
   printlnBoth("==========================================");
 
   preferences.begin("geoshield-cfg", false);
