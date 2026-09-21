@@ -68,20 +68,24 @@
                                 <h3><i class="fa-solid fa-tower-cell"></i> 1. Sambungkan Hardware ESP32</h3>
                                 <span id="prov-status-indicator" class="status-pill warning">Belum Terhubung</span>
                             </div>
-                            <p class="prov-help-text">Hubungkan ke modul Bluetooth HC-06 atau Serial COM:</p>
+                            <p class="prov-help-text">Pilih metode koneksi ke ESP32 (Support HP &amp; Laptop):</p>
                             <div class="prov-btn-group">
-                                <button id="btn-connect-serial" class="btn btn-primary btn-block">
-                                    <i class="fa-solid fa-plug"></i> 🔌 Hubungkan Serial COM (HC-06 / USB)
+                                <button id="btn-connect-wifi-ap" class="btn btn-success btn-block">
+                                    <i class="fa-solid fa-wifi"></i> 🌐 Sambungkan via Hotspot WiFi (ESP32-C3-EWS)
+                                </button>
+                                <button id="btn-connect-serial" class="btn btn-primary btn-block mt-2">
+                                    <i class="fa-solid fa-plug"></i> 🔌 Hubungkan Serial COM (HC-06 / USB Laptop)
                                 </button>
                                 <button id="btn-connect-bt" class="btn btn-bluetooth btn-block mt-2">
-                                    <i class="fa-brands fa-bluetooth-b"></i> 📶 Scan Bluetooth HC-06 (Filter Nama)
+                                    <i class="fa-brands fa-bluetooth-b"></i> 📶 Scan Bluetooth Wireless
                                 </button>
                                 <button id="btn-disconnect-comm" class="btn btn-outline-danger btn-block mt-2 hidden">
                                     <i class="fa-solid fa-link-slash"></i> Putuskan Sambungan
                                 </button>
                             </div>
                             <div class="mt-2 text-muted" style="font-size: 11px; line-height: 1.4;">
-                                💡 <em>Saran Windows: Klik <strong>Hubungkan Serial COM</strong> setelah pairing HC-06 di Windows Settings (PIN: 1234).</em>
+                                📱 <strong>Di HP:</strong> Sambungkan WiFi HP ke hotspot <code>ESP32-C3-EWS</code>, lalu klik tombol hijau di atas.<br>
+                                💻 <strong>Di Laptop:</strong> Gunakan tombol Hijau (WiFi AP) atau Biru (Serial COM HC-06/USB).
                             </div>
                         </div>
 

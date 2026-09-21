@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <WebServer.h>
 #include <Preferences.h>
 
 // =========================================================
@@ -8,6 +9,10 @@
 #define HC06_TX_PIN 5   // ESP32-C3 TX  -> HC-06 RXD
 
 HardwareSerial HC06(1);
+
+// WebServer untuk akses point dari HP / Laptop browser
+WebServer apServer(80);
+String recentLogs = "";
 
 // =========================================================
 // 2. PREFERENCES
@@ -77,13 +82,18 @@ String wifiStatus(wl_status_t s) {
 }
 
 // =========================================================
-// 6. KIRIM DATA KE HC-06 + SERIAL MONITOR
+// 6. KIRIM DATA KE HC-06 + SERIAL MONITOR + WEB AP
 // =========================================================
 void sendHC(String text) {
 
     HC06.println(text);
 
     Serial.println(text);
+
+    recentLogs += text + "\n";
+    if (recentLogs.length() > 4000) {
+        recentLogs = recentLogs.substring(recentLogs.length() - 2500);
+    }
 }
 
 // =========================================================
@@ -1116,37 +1126,25 @@ void setup() {
         sendHC("================================");
 
         sendHC("");
-
-        sendHC(
-            "Belum ada WiFi tersimpan."
-        );
-
+        sendHC("Belum ada WiFi tersimpan.");
         sendHC("");
 
-        sendHC(
-            "Ketik 'scan wifi'"
-        );
+        // =====================================================
+        // AKTIFKAN ACCESS POINT SOFTAP (UNTUK HP & LAPTOP BROWSER)
+        // =====================================================
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP("ESP32-C3-EWS");
+        IPAddress apIP = WiFi.softAPIP();
 
-        sendHC(
-            "untuk scan WiFi sekitar."
-        );
-
+        sendHC("[AP] Access Point Hotspot Aktif!");
+        sendHC("[AP] Nama WiFi : ESP32-C3-EWS");
+        sendHC("[AP] IP Gateway: " + apIP.toString());
+        sendHC("[AP] (HP / Laptop dapat konek ke WiFi ini)");
         sendHC("");
 
-        sendHC(
-            "Ketik 'masukan wifi'"
-        );
-
-        sendHC(
-            "untuk memasukkan SSID/password."
-        );
-
-        sendHC("");
-
-        sendHC(
-            "Ketik 'help' untuk menu."
-        );
-
+        sendHC("Ketik 'scan wifi' untuk scan.");
+        sendHC("Ketik 'masukan wifi' untuk setting.");
+        sendHC("Ketik 'help' untuk menu.");
         sendHC("");
 
         wifiState = WIFI_IDLE;
@@ -1154,6 +1152,37 @@ void setup() {
         // Jangan konek WiFi sebelum ada konfigurasi
         wifiRetry = millis();
     }
+
+    // =====================================================
+    // ROUTE WEBSERVER API (UNTUK WEB DI HP & LAPTOP)
+    // =====================================================
+    apServer.on("/api/logs", HTTP_GET, []() {
+        apServer.sendHeader("Access-Control-Allow-Origin", "*");
+        apServer.send(200, "text/plain", recentLogs);
+    });
+
+    apServer.on("/api/cmd", HTTP_GET, []() {
+        apServer.sendHeader("Access-Control-Allow-Origin", "*");
+        if (apServer.hasArg("q")) {
+            String cmd = apServer.arg("q");
+            processCommand(cmd);
+            apServer.send(200, "text/plain", "OK");
+        } else {
+            apServer.send(400, "text/plain", "Missing cmd param");
+        }
+    });
+
+    apServer.on("/api/status", HTTP_GET, []() {
+        apServer.sendHeader("Access-Control-Allow-Origin", "*");
+        String json = "{\"status\":\"" + wifiStatus(WiFi.status()) + "\",";
+        json += "\"ssid\":\"" + (WiFi.status() == WL_CONNECTED ? WiFi.SSID() : savedSSID) + "\",";
+        json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+        json += "\"rssi\":" + String(WiFi.RSSI()) + "}";
+        apServer.send(200, "application/json", json);
+    });
+
+    apServer.begin();
+    Serial.println("[WEBSERVER] Web API aktif di port 80.");
 
     Serial.println();
     Serial.println(
@@ -1165,6 +1194,11 @@ void setup() {
 // 22. LOOP
 // =========================================================
 void loop() {
+
+    // =====================================================
+    // Handle WebServer Client (HP / Browser)
+    // =====================================================
+    apServer.handleClient();
 
     // =====================================================
     // Baca command dari HC-06 & USB

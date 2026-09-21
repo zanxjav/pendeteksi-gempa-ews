@@ -22,8 +22,13 @@ class ESPProvisioningManager {
         this.txCharacteristic = null;
         this.rxCharacteristic = null;
 
+        // HTTP AP Polling (WiFi Hotspot ESP32-C3-EWS)
+        this.httpPollInterval = null;
+        this.lastLogIndex = 0;
+
         // DOM elements
         this.modal = document.getElementById('provisioning-modal');
+        this.btnConnectWifiAp = document.getElementById('btn-connect-wifi-ap');
         this.btnConnectSerial = document.getElementById('btn-connect-serial');
         this.btnConnectBt = document.getElementById('btn-connect-bt');
         this.btnDisconnect = document.getElementById('btn-disconnect-comm');
@@ -54,6 +59,11 @@ class ESPProvisioningManager {
     }
 
     bindEvents() {
+        // 0. WiFi Hotspot AP Connect (ESP32-C3-EWS at 192.168.4.1) - BEST FOR MOBILE & DESKTOP
+        if (this.btnConnectWifiAp) {
+            this.btnConnectWifiAp.addEventListener('click', () => this.connectWifiAp());
+        }
+
         // 1. Web Serial Connect (USB COM Port / Bluetooth Serial Port Windows)
         if (this.btnConnectSerial) {
             this.btnConnectSerial.addEventListener('click', () => this.connectSerial());
@@ -143,7 +153,72 @@ class ESPProvisioningManager {
     }
 
     // ==========================================================================
-    // A. KONEKSI VIA WEB SERIAL (COM PORT BLUETOOTH / USB)
+    // A. KONEKSI VIA WIFI HOTSPOT ACCESS POINT (ESP32-C3-EWS at 192.168.4.1)
+    // SOLUSI TERBAIK UNTUK HP (ANDROID / IPHONE) & LAPTOP
+    // ==========================================================================
+    async connectWifiAp() {
+        this.logTerminal('Mencoba menyambung ke ESP32 via WiFi AP (http://192.168.4.1)...', 'info');
+        this.setStatus('Menghubungkan ke AP ESP32...', 'warning');
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+            const res = await fetch('http://192.168.4.1/api/status', {
+                signal: controller.signal,
+                mode: 'cors',
+                cache: 'no-cache'
+            });
+            clearTimeout(timeoutId);
+
+            if (!res.ok) throw new Error('HTTP Status: ' + res.status);
+            const data = await res.json();
+
+            this.isConnected = true;
+            this.connectionType = 'http_ap';
+            this.setStatus('WiFi AP ESP32 Terhubung! (192.168.4.1)', 'success');
+            this.logTerminal('Berhasil terhubung ke Access Point ESP32-C3-EWS!', 'success');
+            this.logTerminal(`Status ESP32: Mode=${data.status || 'AP'} | IP=${data.ip || '192.168.4.1'}`, 'info');
+
+            if (this.btnConnectWifiAp) this.btnConnectWifiAp.classList.add('hidden');
+            if (this.btnConnectSerial) this.btnConnectSerial.classList.add('hidden');
+            if (this.btnConnectBt) this.btnConnectBt.classList.add('hidden');
+            if (this.btnDisconnect) this.btnDisconnect.classList.remove('hidden');
+
+            // Mulai polling logs langsung
+            this.startHttpLogsPolling();
+
+        } catch (err) {
+            this.setStatus('Gagal Terhubung ke Hotspot', 'warning');
+            this.logTerminal(`Gagal konek ke http://192.168.4.1: ${err.message}`, 'error');
+            this.logTerminal('💡 PETUNJUK HP: Buka Pengaturan WiFi di HP Anda, sambungkan ke WiFi "ESP32-C3-EWS" (tanpa sandi), lalu klik kembali tombol hijau ini!', 'warn');
+        }
+    }
+
+    startHttpLogsPolling() {
+        if (this.httpPollInterval) clearInterval(this.httpPollInterval);
+
+        this.httpPollInterval = setInterval(async () => {
+            if (!this.isConnected || this.connectionType !== 'http_ap') return;
+
+            try {
+                const res = await fetch('http://192.168.4.1/api/logs', { cache: 'no-cache' });
+                if (res.ok) {
+                    const text = await res.text();
+                    if (text.length > this.lastLogIndex) {
+                        const newChunk = text.substring(this.lastLogIndex);
+                        this.lastLogIndex = text.length;
+                        this.handleIncomingData(newChunk);
+                    }
+                }
+            } catch (e) {
+                // Abaikan kesalahan periodik polling
+            }
+        }, 1200);
+    }
+
+    // ==========================================================================
+    // B. KONEKSI VIA WEB SERIAL (COM PORT BLUETOOTH / USB)
     // ==========================================================================
     async connectSerial() {
         if (!('serial' in navigator)) {
@@ -297,16 +372,23 @@ class ESPProvisioningManager {
     }
 
     // ==========================================================================
-    // C. PENGIRIMAN DATA KE HARDWARE
+    // C. PENGIRIMAN DATA KE HARDWARE (SERIAL / BLUETOOTH / WIFI AP)
     // ==========================================================================
     async sendRaw(data) {
         if (!this.isConnected) {
-            this.logTerminal('Hardware belum tersambung! Silakan klik tombol Sambungkan Serial COM atau Bluetooth terlebih dahulu.', 'warn');
+            this.logTerminal('Hardware belum tersambung! Silakan pilih salah satu tombol koneksi di panel kiri terlebih dahulu.', 'warn');
             return;
         }
 
         try {
-            if (this.connectionType === 'serial' && this.serialWriter) {
+            if (this.connectionType === 'http_ap') {
+                // Kirim lewat endpoint HTTP Access Point ESP32 (Support HP & Laptop)
+                const clean = data.replace(/[\r\n]+$/, '');
+                await fetch('http://192.168.4.1/api/cmd?q=' + encodeURIComponent(clean), {
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+            } else if (this.connectionType === 'serial' && this.serialWriter) {
                 await this.serialWriter.write(data);
             } else if (this.connectionType === 'bluetooth' && this.txCharacteristic) {
                 await this.txCharacteristic.writeValue(new TextEncoder().encode(data));
@@ -397,6 +479,11 @@ class ESPProvisioningManager {
     }
 
     disconnectAll() {
+        if (this.httpPollInterval) {
+            clearInterval(this.httpPollInterval);
+            this.httpPollInterval = null;
+        }
+
         try {
             if (this.serialReader) {
                 this.serialReader.cancel();
@@ -420,8 +507,9 @@ class ESPProvisioningManager {
         this.isConnected = false;
         this.connectionType = null;
         this.setStatus('Belum Terhubung', 'warning');
-        this.logTerminal('Koneksi serial / bluetooth telah diputus.', 'warn');
+        this.logTerminal('Koneksi telah diputus.', 'warn');
 
+        if (this.btnConnectWifiAp) this.btnConnectWifiAp.classList.remove('hidden');
         if (this.btnConnectSerial) this.btnConnectSerial.classList.remove('hidden');
         if (this.btnConnectBt) this.btnConnectBt.classList.remove('hidden');
         if (this.btnDisconnect) this.btnDisconnect.classList.add('hidden');

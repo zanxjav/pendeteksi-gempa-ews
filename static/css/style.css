@@ -1026,3 +1026,56 @@ body.gis-body {
 .text-primary { color: var(--color-cyan) !important; }
 .text-success { color: var(--color-green) !important; }
 .text-danger { color: var(--color-red) !important; }
+
+/* ==============================================================================
+   RESPONSIVE DESIGN KHUSUS MOBILE (HP ANDROID & IPHONE)
+   ============================================================================== */
+@media (max-width: 868px) {
+    .prov-modal-dialog {
+        width: 96% !important;
+        max-width: 96% !important;
+        margin: 10px auto !important;
+        max-height: 94vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .prov-modal-body {
+        padding: 12px !important;
+        overflow-y: auto !important;
+        flex: 1 !important;
+    }
+
+    .prov-content-grid {
+        grid-template-columns: 1fr !important;
+        gap: 14px !important;
+    }
+
+    .terminal-card {
+        min-height: 300px !important;
+    }
+
+    .terminal-body {
+        max-height: 220px !important;
+        font-size: 10px !important;
+    }
+
+    .terminal-quick-cmds {
+        padding: 6px 8px !important;
+        gap: 4px !important;
+    }
+
+    .btn-quick {
+        font-size: 10px !important;
+        padding: 3px 6px !important;
+    }
+
+    #prov-terminal-cmd-input {
+        font-size: 11px !important;
+        padding: 6px 8px !important;
+    }
+
+    .btn-sm {
+        padding: 6px 10px !important;
+    }
+}
