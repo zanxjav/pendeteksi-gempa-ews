@@ -1,0 +1,53 @@
+{
+  "hosting": {
+    "site": "geoshield-ews",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "**/.*",
+      "**/node_modules/**",
+      "**/*.py",
+      "**/*.pyc",
+      "**/*.sqlite3",
+      "**/*.exe",
+      "android_studio_app/**",
+      "firmware/**",
+      "monitoring/**",
+      "geoshield/**",
+      "templates/**",
+      "staticfiles/**",
+      "db.sqlite3",
+      "Procfile",
+      "render.yaml",
+      "requirements.txt",
+      "runtime.txt"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=86400"
+          }
+        ]
+      },
+      {
+        "source": "/static/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

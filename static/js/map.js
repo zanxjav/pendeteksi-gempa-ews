@@ -147,8 +147,10 @@ class GISMonitoringEngine {
         this.markers = [];
         this.rainLayerGroup = L.layerGroup();
         this.quakeLayerGroup = L.layerGroup();
+        this.waterLayerGroup = L.layerGroup();
         this.stationLayerGroup = L.layerGroup();
 
+        this.sortAsc = true;
         this.init();
     }
 
@@ -163,35 +165,35 @@ class GISMonitoringEngine {
         const mapContainer = document.getElementById('gis-map-viewport');
         if (!mapContainer) return;
 
-        // Inisialisasi Peta Leaflet
+        // Inisialisasi Peta Leaflet dengan Engine Google Maps
         this.map = L.map('gis-map-viewport', {
             center: this.centerCoords,
             zoom: this.currentZoom,
-            zoomControl: false
+            zoomControl: true
         });
 
-        // 1. Google Maps Satelit Hybrid Tiles (Sangat Akurat untuk Bandar Lampung)
+        // 1. Google Maps Satelit Hybrid Tiles (Foto Satelit Aktual + Label Jalan & Batas Kota Bandar Lampung)
         this.tileLayers['google-satellite'] = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-            attribution: '&copy; Google Maps Satelit & GIS Indonesia',
+            attribution: '&copy; <a href="https://maps.google.com" target="_blank">Google Maps</a> Satelit Hybrid & GIS Indonesia',
             maxZoom: 20
         });
 
         // 2. Google Maps Peta Jalan (Roadmap)
         this.tileLayers['google-roadmap'] = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            attribution: '&copy; Google Maps Roadmap',
+            attribution: '&copy; <a href="https://maps.google.com" target="_blank">Google Maps</a> Roadmap',
             maxZoom: 20
         });
 
-        // 3. Esri World Imagery (Fallback Satelit GIS Beresolusi Tinggi)
+        // 3. Google Maps Terrain / Topografi Elevasi
+        this.tileLayers['google-terrain'] = L.tileLayer('https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
+            attribution: '&copy; <a href="https://maps.google.com" target="_blank">Google Maps</a> Terrain',
+            maxZoom: 20
+        });
+
+        // 4. Esri World Imagery Fallback
         this.tileLayers['esri-satellite'] = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}', {
             attribution: '&copy; Esri World Imagery',
             maxZoom: 18
-        });
-
-        // 4. OpenStreetMap Standar
-        this.tileLayers['osm'] = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
-            maxZoom: 19
         });
 
         // Default: Google Maps Satelit Hybrid
@@ -200,6 +202,7 @@ class GISMonitoringEngine {
         // Layer groups
         this.rainLayerGroup.addTo(this.map);
         this.quakeLayerGroup.addTo(this.map);
+        this.waterLayerGroup.addTo(this.map);
         this.stationLayerGroup.addTo(this.map);
     }
 
@@ -247,9 +250,10 @@ class GISMonitoringEngine {
         this.stationLayerGroup.clearLayers();
         this.rainLayerGroup.clearLayers();
         this.quakeLayerGroup.clearLayers();
+        this.waterLayerGroup.clearLayers();
+        this.markers = [];
 
         this.stations.forEach(st => {
-            // Icon Pin Khusus Pos Pantau
             const isAlert = st.quakeStatus !== 'AMAN' || st.rainRate >= 20;
             const pinColor = isAlert ? '#EF4444' : '#10B981';
 
@@ -270,7 +274,6 @@ class GISMonitoringEngine {
 
             const marker = L.marker([st.lat, st.lng], { icon: customIcon }).addTo(this.stationLayerGroup);
 
-            // Popup detail interaktif
             const popupContent = `
                 <div class="gis-popup-content">
                     <div class="popup-title">
@@ -308,39 +311,60 @@ class GISMonitoringEngine {
             `;
             marker.bindPopup(popupContent);
 
-            // Jika ada hujan di wilayah tersebut, gambarkan lingkaran zona sebaran hujan
+            // 1. Layer Sebaran Hujan (Jika ada hujan)
             if (st.rainRate > 0) {
-                const rainCircle = L.circle([st.lat, st.lng], {
-                    radius: 2000, // 2 km radius
+                L.circle([st.lat, st.lng], {
+                    radius: Math.max(1500, st.rainRate * 200),
                     color: '#38BDF8',
                     weight: 1.5,
                     fillColor: '#0284C7',
-                    fillOpacity: 0.25
-                }).addTo(this.rainLayerGroup);
+                    fillOpacity: 0.22
+                }).bindTooltip(`Zona Hujan ${st.name}: ${st.rainRate} mm/jam`, { direction: 'top' })
+                  .addTo(this.rainLayerGroup);
+            }
+
+            // 2. Layer Sensor Muka Air Sungai
+            if (st.waterLevel > 0) {
+                const waterColor = st.waterLevel >= 100 ? '#EF4444' : (st.waterLevel >= 70 ? '#F59E0B' : '#06B6D4');
+                L.circleMarker([st.lat + 0.003, st.lng - 0.003], {
+                    radius: 8,
+                    color: waterColor,
+                    fillColor: waterColor,
+                    fillOpacity: 0.85,
+                    weight: 2
+                }).bindTooltip(`Aliran Sungai ${st.name}: ${st.waterLevel} cm`, { direction: 'bottom' })
+                  .addTo(this.waterLayerGroup);
             }
 
             this.markers.push({ stationId: st.id, marker });
         });
+
+        // 3. Layer Radar Seismik / Sesar Gempa Lampung
+        L.circle([-5.3582, 105.3148], { // Pusat EWS ITERA
+            radius: 8500,
+            color: '#10B981',
+            weight: 1,
+            dashArray: '4, 8',
+            fillColor: '#10B981',
+            fillOpacity: 0.08
+        }).bindTooltip('Radius Pantau Seismik MPU-6050 ITERA (8.5 km)', { direction: 'center', permanent: false })
+          .addTo(this.quakeLayerGroup);
     }
 
     selectStation(station) {
-        // Highlight di daftar pos alat
         document.querySelectorAll('.pos-item').forEach(el => el.classList.remove('active'));
         const activeItem = document.getElementById(`station-item-${station.id}`);
         if (activeItem) activeItem.classList.add('active');
 
-        // Pusatkan peta ke stasiun yang dipilih
         if (this.map) {
             this.map.flyTo([station.lat, station.lng], 15, { duration: 1.2 });
         }
 
-        // Buka popup marker
         const match = this.markers.find(m => m.stationId === station.id);
         if (match && match.marker) {
             match.marker.openPopup();
         }
 
-        // Perbarui panel metrik detail di UI
         this.updateActiveStationUI(station);
     }
 
@@ -353,7 +377,6 @@ class GISMonitoringEngine {
         const rainEl = document.getElementById('active-station-rain');
         const waterEl = document.getElementById('active-station-water');
         const tdsEl = document.getElementById('active-station-tds');
-        const phEl = document.getElementById('active-station-ph');
 
         if (titleEl) titleEl.textContent = st.name;
         if (elevEl) elevEl.textContent = `${st.elevation} mdpl`;
@@ -362,70 +385,139 @@ class GISMonitoringEngine {
         if (mmiEl) mmiEl.textContent = st.mmi;
         if (rainEl) rainEl.textContent = `${st.rainRate} mm/jam (${st.rainStatus})`;
         if (waterEl) waterEl.textContent = `${st.waterLevel} cm`;
-        if (tdsEl) tdsEl.textContent = `${st.tds} ppm`;
-        if (phEl) phEl.textContent = `${st.ph}`;
+        if (tdsEl) tdsEl.textContent = `${st.tds} ppm | pH ${st.ph}`;
+    }
+
+    filterStations(query) {
+        const q = (query || '').toLowerCase().trim();
+        document.querySelectorAll('.pos-item').forEach(el => {
+            const txt = el.textContent.toLowerCase();
+            el.style.display = txt.includes(q) ? 'block' : 'none';
+        });
     }
 
     bindEvents() {
-        // Layer Switcher: Satelit vs Peta
+        // 1. Base Layer Switcher: Satelit (Google Maps) vs Roadmap (Google Maps)
         const radioSat = document.getElementById('layer-satellite');
         const radioRoad = document.getElementById('layer-roadmap');
 
         if (radioSat) {
             radioSat.addEventListener('change', () => {
-                if (radioSat.checked) {
-                    this.switchBaseLayer('google-satellite');
-                }
+                if (radioSat.checked) this.switchBaseLayer('google-satellite');
             });
         }
         if (radioRoad) {
             radioRoad.addEventListener('change', () => {
-                if (radioRoad.checked) {
-                    this.switchBaseLayer('google-roadmap');
-                }
+                if (radioRoad.checked) this.switchBaseLayer('google-roadmap');
             });
         }
 
-        // Layer Overlays Checkbox
+        // 2. Layer Overlays Checkbox: Hujan, Gempa, Muka Air
         const chkRain = document.getElementById('chk-layer-rain');
         const chkQuake = document.getElementById('chk-layer-quake');
+        const chkWater = document.getElementById('chk-layer-water');
 
         if (chkRain) {
             chkRain.addEventListener('change', () => {
-                if (chkRain.checked) {
-                    this.map.addLayer(this.rainLayerGroup);
-                } else {
-                    this.map.removeLayer(this.rainLayerGroup);
-                }
+                if (chkRain.checked) this.map.addLayer(this.rainLayerGroup);
+                else this.map.removeLayer(this.rainLayerGroup);
             });
         }
         if (chkQuake) {
             chkQuake.addEventListener('change', () => {
-                if (chkQuake.checked) {
-                    this.map.addLayer(this.quakeLayerGroup);
-                } else {
-                    this.map.removeLayer(this.quakeLayerGroup);
+                if (chkQuake.checked) this.map.addLayer(this.quakeLayerGroup);
+                else this.map.removeLayer(this.quakeLayerGroup);
+            });
+        }
+        if (chkWater) {
+            chkWater.addEventListener('change', () => {
+                if (chkWater.checked) this.map.addLayer(this.waterLayerGroup);
+                else this.map.removeLayer(this.waterLayerGroup);
+            });
+        }
+
+        // 3. Tombol "1 Bandar Lampung": Reset & Fokus Peta Penuh
+        const btnResetBdl = document.getElementById('btn-reset-bandarlampung');
+        if (btnResetBdl) {
+            btnResetBdl.addEventListener('click', () => {
+                if (this.map) {
+                    this.map.flyTo(this.centerCoords, this.currentZoom, { duration: 1.2 });
                 }
             });
         }
 
-        // Reset Peta ke Seluruh Bandar Lampung
-        const btnResetBdl = document.getElementById('btn-reset-bandarlampung');
-        if (btnResetBdl) {
-            btnResetBdl.addEventListener('click', () => {
-                this.map.flyTo(this.centerCoords, this.currentZoom, { duration: 1 });
+        // 4. Search Filter (Navbar & Sidebar Sinkron)
+        const filterInput = document.getElementById('filter-pos-input');
+        const quickFilter = document.getElementById('quick-filter-input');
+
+        if (filterInput) {
+            filterInput.addEventListener('input', (e) => {
+                if (quickFilter) quickFilter.value = e.target.value;
+                this.filterStations(e.target.value);
+            });
+        }
+        if (quickFilter) {
+            quickFilter.addEventListener('input', (e) => {
+                if (filterInput) filterInput.value = e.target.value;
+                this.filterStations(e.target.value);
             });
         }
 
-        // Filter Pos Alat Search Input
-        const filterInput = document.getElementById('filter-pos-input');
-        if (filterInput) {
-            filterInput.addEventListener('input', (e) => {
-                const q = e.target.value.toLowerCase();
-                document.querySelectorAll('.pos-item').forEach(el => {
-                    const txt = el.textContent.toLowerCase();
-                    el.style.display = txt.includes(q) ? 'block' : 'none';
-                });
+        // 5. Tombol Sort Stasiun (A-Z / Z-A)
+        const btnSort = document.getElementById('btn-sort-stations');
+        if (btnSort) {
+            btnSort.addEventListener('click', () => {
+                this.sortAsc = !this.sortAsc;
+                this.stations.sort((a, b) => this.sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+                this.renderStationList();
+                btnSort.innerHTML = `<i class="fa-solid fa-arrow-down-${this.sortAsc ? 'a-z' : 'z-a'}"></i> Sort`;
+            });
+        }
+
+        // 6. Navigasi Atas (Smooth Scroll & Active Link)
+        document.querySelectorAll('.gis-nav-links a').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.gis-nav-links a').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                const targetId = link.getAttribute('href');
+                if (targetId === '#pos-alat') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    const qf = document.getElementById('quick-filter-input');
+                    if (qf) qf.focus();
+                } else {
+                    const targetEl = document.querySelector(targetId);
+                    if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            });
+        });
+
+        // 7. Tombol Install PWA
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btnPwa = document.getElementById('btn-install-pwa');
+            if (btnPwa) btnPwa.classList.remove('hidden');
+        });
+
+        const btnPwa = document.getElementById('btn-install-pwa');
+        if (btnPwa) {
+            // Tampilkan tombol jika di browser modern
+            btnPwa.classList.remove('hidden');
+            btnPwa.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        btnPwa.classList.add('hidden');
+                    }
+                    deferredPrompt = null;
+                } else {
+                    alert('Aplikasi GeoShield EWS siap dipasang! Buka menu browser Anda lalu pilih "Tambahkan ke Layar Utama" / "Install GeoShield EWS".');
+                }
             });
         }
     }

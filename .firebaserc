@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "vehicle-monitor-esp32"
+  },
+  "targets": {
+    "vehicle-monitor-esp32": {
+      "hosting": {
+        "geoshield": [
+          "geoshield-ews"
+        ]
+      }
+    }
+  }
+}
