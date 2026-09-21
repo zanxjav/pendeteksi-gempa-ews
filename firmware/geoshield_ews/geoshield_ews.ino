@@ -85,9 +85,9 @@ const float DISTANCE_TO_RIVER_BED_CM  = 200.0; // Tinggi sensor ke dasar saluran
 // ==============================================================================
 Preferences preferences;
 
-// Kredensial WiFi Default (Bisa diganti dinamis via Bluetooth HC-06 & Flash NVS)
-const char* default_ssid     = "GALAXY A33 5G";
-const char* default_password = "cicing77";
+// WiFi Credentials: Diatur 100% via Bluetooth HC-06 (Tidak Ada Hardcode)
+// Saat pertama boot, ESP32 akan masuk mode Bluetooth Provisioning.
+// User set WiFi via Bluetooth, lalu disimpan ke Flash NVS.
 
 String savedSSID       = "";
 String savedPass       = "";
@@ -218,12 +218,27 @@ void setup() {
   // Kalibrasi MPU6050 saat posisi diam (Baseline)
   calibrateMPU6050Baseline();
 
-  // Inisialisasi WiFi State Machine Non-Blocking
-  wifiRetry = millis() - 2000;
-  wifiState = WIFI_IDLE;
-
   // Aktifkan Bluetooth HC-06 sebagai Access Point Provisioning Gateway
   startBluetooth();
+
+  // Cek apakah WiFi sudah pernah di-set via Bluetooth
+  if (savedSSID.length() > 0) {
+    Serial.println("[BOOT] WiFi tersimpan ditemukan, memulai koneksi...");
+    wifiRetry = millis() - 2000;
+    wifiState = WIFI_IDLE;
+  } else {
+    Serial.println("[BOOT] Belum ada WiFi tersimpan.");
+    Serial.println("[BOOT] Menunggu konfigurasi via Bluetooth HC-06...");
+    Serial.println("[BOOT] Gunakan Bluetooth: ketik 'set:NamaWiFi,Password'");
+    wifiState = WIFI_IDLE;
+    if (lcdAvailable) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Mode: BT Setup");
+      lcd.setCursor(0, 1);
+      lcd.print("Set WiFi via BT");
+    }
+  }
 }
 
 // ==============================================================================
@@ -610,18 +625,23 @@ String wifiStatus(wl_status_t s) {
 }
 
 String getActiveSSID() {
-    return (savedSSID.length() > 0) ? savedSSID : String(default_ssid);
+    return savedSSID;
 }
 
 String getActivePass() {
-    return (savedPass.length() > 0) ? savedPass : String(default_password);
+    return savedPass;
 }
 
 void startWifi() {
-    wifiAttempt++;
     String currentSsid = getActiveSSID();
     String currentPass = getActivePass();
 
+    if (currentSsid.length() == 0) {
+        wifiState = WIFI_IDLE;
+        return;
+    }
+
+    wifiAttempt++;
     Serial.print("\n[WIFI] Menghubungkan ke: "); Serial.println(currentSsid);
     if (isBluetoothActive) {
         HC06.print("\n[WIFI] Menghubungkan ke: "); HC06.println(currentSsid);
@@ -655,7 +675,8 @@ void startWifi() {
 void updateWifi() {
     switch (wifiState) {
         case WIFI_IDLE:
-            if (millis() - wifiRetry > 2000) {
+            // Hanya connect jika WiFi sudah pernah di-set via Bluetooth
+            if (savedSSID.length() > 0 && millis() - wifiRetry > 2000) {
                 startWifi();
             }
             break;
