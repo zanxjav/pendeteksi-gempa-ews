@@ -3,731 +3,593 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoShield EWS - Sistem Pemantauan Gempa & Multi-Bencana</title>
-    <meta name="description" content="Sistem peringatan dini (Early Warning System) dan monitoring gempa bumi, banjir, curah hujan, dan kualitas air (TDS) berbasis Web GIS interaktif Google Maps & OpenStreetMap.">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌋</text></svg>">
+    <title>Vehicle Monitor - Real-time Tracking & Vehicle Information</title>
+    <meta name="description" content="Vehicle Monitor & Earthquake Detection EWS - Real-time Tracking & Telemetry System ITERA Lampung">
+    
+    <!-- PWA Meta & Manifest -->
+    <link rel="manifest" href="static/manifest.json">
+    <meta name="theme-color" content="#0C192C">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
 
-    <!-- Google Fonts -->
+    <!-- Google Fonts: Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <!-- Leaflet CSS (Open Source GIS Fallback & Hybrid) -->
+    <!-- Leaflet CSS (OpenStreetMap GIS) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     
-    <!-- Font Awesome Icons -->
+    <!-- Font Awesome Icons 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
-    <!-- Chart.js for real-time telemetry -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- App Stylesheet -->
-    <link rel="stylesheet" href="css/style.css">
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="static/css/style.css">
 </head>
-<body class="dark-theme">
-    <!-- EWS Emergency Alert Overlay (Hidden by default) -->
-    <div id="ews-alert-overlay" class="ews-overlay hidden">
-        <div class="alert-pulse-bg"></div>
-        <div class="alert-modal">
-            <div class="alert-badge"><i class="fa-solid fa-triangle-exclamation"></i> PERINGATAN DINI AKTIF</div>
-            <h2 id="alert-modal-title">GEMPA BUMI TERDETEKSI!</h2>
-            <p id="alert-modal-desc">Intensitas getaran melebihi batas aman. Segera lakukan evakuasi ke tempat terbuka!</p>
-            <div class="alert-stats-grid">
-                <div class="alert-stat-card">
-                    <span class="label">Estimasi Magnitudo</span>
-                    <span id="alert-mag-val" class="val text-danger">6.4 M</span>
+<body class="dashboard-body">
+
+    <!-- ============================================================================== -->
+    <!-- GATEWAY: ESP32 BLUETOOTH & ACCESS POINT PROVISIONING WIZARD (MODAL GATEKEEPER) -->
+    <!-- ============================================================================== -->
+    <div id="provisioning-modal" class="prov-modal-overlay active" aria-hidden="false">
+        <div class="prov-modal-dialog">
+            <div class="prov-modal-header">
+                <div class="prov-header-title">
+                    <div class="prov-icon-glow">
+                        <i class="fa-brands fa-bluetooth-b"></i>
+                    </div>
+                    <div>
+                        <h2>Setup WiFi ESP32 via Bluetooth / AP</h2>
+                        <p>Konfigurasi koneksi internet ESP32 sebelum masuk ke menu utama dashboard</p>
+                    </div>
                 </div>
-                <div class="alert-stat-card">
-                    <span class="label">Skala MMI</span>
-                    <span id="alert-mmi-val" class="val text-danger">VI (Kuat)</span>
-                </div>
-                <div class="alert-stat-card">
-                    <span class="label">Status Banjir / Air</span>
-                    <span id="alert-flood-val" class="val text-warning">Siaga 2</span>
+                <div class="prov-header-actions">
+                    <button id="btn-skip-provisioning" class="btn-text-skip" title="Lewati setup dan langsung buka dashboard">
+                        Lewati / Langsung Masuk <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                    <button id="btn-close-provisioning" class="btn-icon-close" title="Tutup">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
                 </div>
             </div>
-            <div class="alert-actions">
-                <button id="btn-silence-alarm" class="btn btn-warning"><i class="fa-solid fa-volume-xmark"></i> Matikan Sirine</button>
-                <button id="btn-dismiss-alert" class="btn btn-secondary">Tutup Notifikasi</button>
+
+            <div class="prov-modal-body">
+                <!-- Step Indicator -->
+                <div class="prov-steps-nav">
+                    <div class="step-item active">
+                        <span class="step-num">1</span>
+                        <span class="step-txt">Hubungkan Bluetooth HC-06</span>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step-item active">
+                        <span class="step-num">2</span>
+                        <span class="step-txt">Input SSID & Sandi WiFi</span>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step-item">
+                        <span class="step-num">3</span>
+                        <span class="step-txt">Verifikasi & Masuk Menu</span>
+                    </div>
+                </div>
+
+                <div class="prov-content-grid">
+                    <!-- Left: Connection Form -->
+                    <div class="prov-form-col">
+                        <div class="prov-card-inner">
+                            <div class="prov-section-header">
+                                <h3><i class="fa-solid fa-tower-cell"></i> 1. Sambungkan Perangkat</h3>
+                                <span id="prov-status-indicator" class="status-pill warning">Siap Pairing</span>
+                            </div>
+                            <p class="prov-help-text">
+                                Hubungkan HP / Laptop ke Bluetooth <strong>HC-06</strong> atau gunakan mode simulasi untuk pengujian demo.
+                            </p>
+                            <div class="prov-btn-group">
+                                <button id="btn-connect-bt" class="btn btn-bluetooth">
+                                    <i class="fa-brands fa-bluetooth-b"></i> Scan & Hubungkan HC-06
+                                </button>
+                                <button id="btn-disconnect-bt" class="btn btn-outline-danger hidden">
+                                    <i class="fa-solid fa-link-slash"></i> Putuskan Bluetooth
+                                </button>
+                                <button id="btn-simulate-esp" class="btn btn-outline-secondary" title="Simulasi respon ESP32 tanpa hardware fisik">
+                                    <i class="fa-solid fa-play"></i> Mode Simulasi Cepat
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="prov-card-inner mt-3">
+                            <div class="prov-section-header">
+                                <h3><i class="fa-solid fa-wifi"></i> 2. Kredensial WiFi Rumah / Kampus</h3>
+                            </div>
+                            <div class="prov-form-group">
+                                <label for="prov-wifi-ssid">Nama WiFi (SSID):</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-network-wired"></i>
+                                    <input type="text" id="prov-wifi-ssid" placeholder="Contoh: ITERA-WiFi / Hotspot HP" value="ITERA-WiFi">
+                                </div>
+                            </div>
+                            <div class="prov-form-group mt-2">
+                                <label for="prov-wifi-pass">Password WiFi:</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-key"></i>
+                                    <input type="password" id="prov-wifi-pass" placeholder="Ketik sandi WiFi (kosongkan jika tanpa sandi)" value="itera12345">
+                                </div>
+                            </div>
+                            <div class="prov-actions mt-3">
+                                <button id="btn-send-wifi-config" class="btn btn-primary btn-block">
+                                    <i class="fa-solid fa-paper-plane"></i> Kirim Konfigurasi ke ESP32
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Quick Action Utilities -->
+                        <div class="prov-quick-actions mt-2">
+                            <button id="btn-check-status-esp" class="btn-sm btn-outline"><i class="fa-solid fa-info-circle"></i> Cek Status</button>
+                            <button id="btn-restart-esp" class="btn-sm btn-outline"><i class="fa-solid fa-rotate"></i> Reboot ESP32</button>
+                            <a href="http://192.168.4.1" target="_blank" class="btn-sm btn-outline" title="Akses Point AP Mode"><i class="fa-solid fa-globe"></i> AP 192.168.4.1</a>
+                        </div>
+                    </div>
+
+                    <!-- Right: Live ESP32 Serial Terminal -->
+                    <div class="prov-terminal-col">
+                        <div class="terminal-card">
+                            <div class="terminal-header">
+                                <div class="terminal-dots">
+                                    <span class="dot dot-red"></span>
+                                    <span class="dot dot-yellow"></span>
+                                    <span class="dot dot-green"></span>
+                                </div>
+                                <span class="terminal-title"><i class="fa-solid fa-terminal"></i> Konsol UART ESP32 (HC-06 9600 Baud)</span>
+                                <span id="prov-conn-state-text" class="terminal-status">Menunggu Input</span>
+                            </div>
+                            <div id="prov-terminal-output" class="terminal-body">
+                                <div class="terminal-line line-info">[BOOT] GeoShield EWS ESP32 Provisioning Manager Ready.</div>
+                                <div class="terminal-line line-muted">[INFO] Firmware: esp32_c3_hc06_wifi_manager.ino loaded.</div>
+                                <div class="terminal-line line-rx">[BLUETOOTH] Silakan masukkan SSID & Password lalu klik "Kirim Konfigurasi"...</div>
+                            </div>
+                            <div class="terminal-footer">
+                                <button id="btn-enter-dashboard" class="btn btn-success btn-block hidden">
+                                    <i class="fa-solid fa-gauge-high"></i> Konfigurasi Sukses! Masuk ke Dashboard Utama
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Application Shell -->
-    <div class="app-container">
-        <!-- Top Navigation Bar -->
-        <header class="app-header">
-            <div class="brand">
-                <div class="brand-icon">
-                    <i class="fa-solid fa-satellite-dish"></i>
-                    <span class="pulse-ring"></span>
+    <!-- ============================================================================== -->
+    <!-- MAIN APPLICATION WRAPPER (MATCHED 1:1 WITH USER REFERENCE IMAGE)               -->
+    <!-- ============================================================================== -->
+    <div class="vehicle-layout-container">
+
+        <!-- 1. LEFT SIDEBAR (Dark Navy) -->
+        <aside class="sidebar-nav">
+            <div class="sidebar-top">
+                <!-- Top Brand Logo -->
+                <div class="brand-logo-box">
+                    <div class="logo-icon-wrap">
+                        <i class="fa-solid fa-car-side logo-icon"></i>
+                    </div>
                 </div>
-                <div class="brand-text">
-                    <h1>GeoShield <span>EWS</span></h1>
-                    <span class="tagline">Pusat Monitoring Seismik & Multi-Bencana Terpadu</span>
-                </div>
+
+                <!-- Navigation Menu -->
+                <nav class="sidebar-menu">
+                    <a href="index.html" class="menu-link active">
+                        <i class="fa-solid fa-house-chimney"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#peta" id="sidebar-nav-peta" class="menu-link">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                        <span>Peta</span>
+                    </a>
+                    <a href="#riwayat" id="sidebar-nav-riwayat" class="menu-link">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>Riwayat Perjalanan</span>
+                    </a>
+                    <a href="#perawatan" id="sidebar-nav-perawatan" class="menu-link">
+                        <i class="fa-solid fa-wrench"></i>
+                        <span>Perawatan</span>
+                    </a>
+                    <a href="#bluetooth" id="sidebar-nav-bluetooth" class="menu-link" title="Setup WiFi ESP32 via Bluetooth">
+                        <i class="fa-brands fa-bluetooth-b text-info"></i>
+                        <span>Setup WiFi ESP32</span>
+                    </a>
+                    <a href="#pengaturan" id="sidebar-nav-pengaturan" class="menu-link">
+                        <i class="fa-solid fa-gear"></i>
+                        <span>Pengaturan</span>
+                    </a>
+                </nav>
             </div>
 
-            <!-- Global Status Pills -->
-            <div class="header-status-group">
-                <div class="status-badge" id="system-status-badge">
-                    <span class="status-dot green"></span>
-                    <span class="status-label">SISTEM: <strong>NORMAL</strong></span>
-                </div>
-                <div class="status-badge live-clock">
-                    <i class="fa-regular fa-clock"></i>
-                    <span id="live-time-display">--:--:-- WIB</span>
-                </div>
-                <div class="status-badge connection-badge" id="iot-conn-badge">
-                    <i class="fa-solid fa-wifi"></i>
-                    <span id="iot-conn-status">IoT: Simulator Mode</span>
+            <!-- Bottom Slogan Branding (Matches Screenshot) -->
+            <div class="sidebar-bottom">
+                <div class="slogan-box">
+                    <p>Jaga Kendaraan</p>
+                    <p>Jaga Perjalanan</p>
+                    <p>Jaga Masa Depan</p>
                 </div>
             </div>
+        </aside>
 
-            <!-- Header Action Buttons -->
-            <div class="header-actions">
-                <button id="btn-toggle-sound" class="btn-icon" title="Toggle Suara Sirine">
-                    <i class="fa-solid fa-volume-high" id="sound-icon"></i>
-                </button>
-                <button id="btn-open-config" class="btn btn-outline" title="Pengaturan Lokasi & Google Maps API">
-                    <i class="fa-solid fa-sliders"></i> Konfigurasi
-                </button>
-                <button id="btn-open-hardware" class="btn btn-outline" title="Panduan Sirkuit & Firmware ESP32">
-                    <i class="fa-solid fa-microchip"></i> Hardware
-                </button>
-                <a href="https://github.com/zanxjav/pendeteksi-gempa-ews" target="_blank" id="btn-github-repo" class="btn btn-primary" title="Buka Kode Sumber di GitHub">
-                    <i class="fa-brands fa-github"></i> Repository
-                </a>
-            </div>
-        </header>
+        <!-- 2. MAIN VIEWPORT -->
+        <div class="main-viewport">
 
-        <!-- Main Dashboard Content Grid -->
-        <main class="dashboard-grid">
-            
-            <!-- LEFT COLUMN: SENSOR METRICS & SEISMOGRAPH -->
-            <section class="left-panel">
-                
-                <!-- SENSOR 1: GETARAN / SEISMIK & GEMPA -->
-                <div class="card sensor-card seismic-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <i class="fa-solid fa-chart-line text-warning"></i>
-                            <h3>Sensor Seismik (Getaran & Gempa)</h3>
+            <!-- TOP NAVBAR (Clean & White) -->
+            <header class="top-header">
+                <div class="header-left">
+                    <div class="header-title-group">
+                        <div class="header-icon">
+                            <i class="fa-solid fa-car-side"></i>
                         </div>
-                        <div class="sensor-badge" id="seismic-status-badge">AMAN</div>
-                    </div>
-
-                    <!-- Live Seismograph Canvas -->
-                    <div class="seismograph-wrapper">
-                        <div class="seismograph-header">
-                            <span class="channel-label"><i class="fa-solid fa-wave-square"></i> Gelombang Seismik Real-time (Z-Axis / MPU6050)</span>
-                            <span class="pga-label">PGA: <strong id="val-pga">0.002</strong> g</span>
-                        </div>
-                        <div class="canvas-container">
-                            <canvas id="seismographCanvas"></canvas>
-                            <div class="grid-overlay"></div>
-                        </div>
-                    </div>
-
-                    <!-- Seismic Metrics Stats Row -->
-                    <div class="metrics-row">
-                        <div class="metric-box">
-                            <span class="m-label">Frekuensi Getaran</span>
-                            <div class="m-value"><span id="val-freq">0.2</span> <small>Hz</small></div>
-                        </div>
-                        <div class="metric-box">
-                            <span class="m-label">Akselerasi Maks (gal)</span>
-                            <div class="m-value"><span id="val-gal">1.8</span> <small>cm/s²</small></div>
-                        </div>
-                        <div class="metric-box highlight">
-                            <span class="m-label">Estimasi Magnitudo</span>
-                            <div class="m-value"><span id="val-magnitude">0.0</span> <small>SR / M</small></div>
-                        </div>
-                        <div class="metric-box">
-                            <span class="m-label">Intensitas MMI</span>
-                            <div class="m-value" id="val-mmi">I (Tidak Terasa)</div>
+                        <div>
+                            <h1 class="header-main-title">Vehicle Monitor</h1>
+                            <p class="header-sub-title">Real-time Tracking & Vehicle Information</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- SENSOR 2 & 3 & 4: MULTI-DISASTER METRICS (Banjir, Hujan, TDS) -->
-                <div class="sensor-tri-grid">
-                    
-                    <!-- SENSOR 2: SENSOR BANJIR / WATER LEVEL -->
-                    <div class="card sensor-card flood-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fa-solid fa-water text-primary"></i>
-                                <h3>Muka Air (Banjir)</h3>
-                            </div>
-                            <span class="badge badge-normal" id="flood-badge">NORMAL</span>
+                <div class="header-right">
+                    <!-- Status Online Pill -->
+                    <div class="header-pill status-online">
+                        <span class="dot-indicator green"></span>
+                        <span id="header-conn-status">Online</span>
+                    </div>
+
+                    <!-- Live Date & Clock -->
+                    <div class="header-pill date-clock">
+                        <i class="fa-regular fa-clock"></i>
+                        <span id="live-time-display">18 Sep 2025 08:21</span>
+                    </div>
+
+                    <!-- User Profile Badge -->
+                    <div class="user-profile-badge">
+                        <div class="user-avatar">
+                            <i class="fa-solid fa-circle-user"></i>
                         </div>
-                        <div class="water-gauge-container">
-                            <div class="water-tank-graphic">
-                                <div class="water-fill" id="water-fill-level" style="height: 25%;">
-                                    <div class="water-wave"></div>
-                                </div>
-                                <div class="water-threshold-line danger-line" style="bottom: 75%;" title="Batas Bahaya (150 cm)"></div>
-                                <div class="water-threshold-line warning-line" style="bottom: 50%;" title="Batas Siaga (100 cm)"></div>
-                            </div>
-                            <div class="water-stats">
-                                <div class="stat-number">
-                                    <span id="val-water-level">42.5</span>
-                                    <span class="unit">cm</span>
-                                </div>
-                                <div class="stat-desc">Ketinggian Aliran Sungai/Drainase</div>
-                                <div class="stat-limits">
-                                    <span>Siaga: <strong>100cm</strong></span>
-                                    <span>Awas: <strong>150cm</strong></span>
-                                </div>
-                            </div>
+                        <div class="user-meta">
+                            <span class="user-name">Fauzan Javier Keza</span>
+                            <span class="user-role">User</span>
                         </div>
                     </div>
 
-                    <!-- SENSOR 3: SENSOR HUJAN -->
-                    <div class="card sensor-card rain-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fa-solid fa-cloud-showers-heavy text-info"></i>
-                                <h3>Sensor Hujan</h3>
-                            </div>
-                            <span class="badge badge-normal" id="rain-badge">CERAH</span>
+                    <!-- Setup WiFi Button -->
+                    <div class="header-quick-actions">
+                        <button id="btn-open-provisioning" class="btn-top-action" title="Buka Pengaturan WiFi ESP32">
+                            <i class="fa-brands fa-bluetooth-b text-primary"></i> Setup WiFi
+                        </button>
+                        <button id="btn-install-pwa" class="btn-top-action hidden" title="Install Aplikasi EWS">
+                            <i class="fa-solid fa-download text-success"></i> Install App
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- DASHBOARD CONTENT GRID (Left 68% + Right 32%) -->
+            <div class="dashboard-content-layout">
+
+                <!-- LEFT / CENTER COLUMN (MAP + 4 METRIC CARDS) -->
+                <section class="center-content-column">
+
+                    <!-- FULL MAP HERO CARD -->
+                    <div class="card full-map-card">
+                        <!-- Floating Top-Left Mode Pills -->
+                        <div class="map-floating-top-left">
+                            <button id="btn-mode-realtime" class="btn-floating-pill active">
+                                <i class="fa-solid fa-location-crosshairs"></i> Realtime
+                            </button>
+                            <button id="btn-mode-route" class="btn-floating-pill">
+                                <i class="fa-solid fa-route"></i> Rute
+                            </button>
                         </div>
-                        <div class="rain-data-display">
-                            <div class="rain-icon-box" id="rain-icon-box">
-                                <i class="fa-solid fa-cloud-sun"></i>
+
+                        <!-- Floating Top-Right Controls -->
+                        <div class="map-floating-top-right">
+                            <button id="btn-fullscreen-map" class="btn-floating-pill">
+                                <i class="fa-solid fa-expand"></i> Tampilkan Semua
+                            </button>
+                        </div>
+
+                        <!-- Leaflet Interactive Map Container (Centered at ITERA Lampung) -->
+                        <div id="leaflet-map" class="map-canvas-full"></div>
+
+                        <!-- Floating Station / Vehicle Info Card Over Marker -->
+                        <div class="map-floating-info-card" id="map-marker-infocard">
+                            <div class="info-car-icon">
+                                <i class="fa-solid fa-car-side"></i>
                             </div>
-                            <div class="rain-stats">
-                                <div class="stat-number">
-                                    <span id="val-rain-rate">0.0</span>
-                                    <span class="unit">mm/jam</span>
-                                </div>
-                                <div class="stat-desc" id="rain-condition-text">Tidak ada presipitasi</div>
-                                <div class="stat-analog">
-                                    <span>Sensor Analog: <strong id="val-rain-raw">4095</strong> (Kering)</span>
-                                </div>
+                            <div class="info-texts">
+                                <div class="info-primary">Kecepatan <strong id="map-tooltip-speed">48 km/h</strong></div>
+                                <div class="info-coords">Lat: <span id="map-tooltip-lat">-5.4267</span> Lon: <span id="map-tooltip-lon">105.3179</span></div>
                             </div>
+                        </div>
+
+                        <!-- Floating Bottom-Right Map Controls -->
+                        <div class="map-floating-bottom-right">
+                            <button id="btn-recenter-map" class="map-ctrl-btn" title="Pusatkan ke Posisi Sensor"><i class="fa-solid fa-crosshairs"></i></button>
+                            <button id="btn-zoom-in" class="map-ctrl-btn" title="Perbesar"><i class="fa-solid fa-plus"></i></button>
+                            <button id="btn-zoom-out" class="map-ctrl-btn" title="Perkecil"><i class="fa-solid fa-minus"></i></button>
                         </div>
                     </div>
 
-                    <!-- SENSOR 4: SENSOR TDS (KUALITAS AIR) -->
-                    <div class="card sensor-card tds-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fa-solid fa-flask-vial text-emerald"></i>
-                                <h3>Sensor TDS Air</h3>
-                            </div>
-                            <span class="badge badge-normal" id="tds-badge">BERSIH</span>
-                        </div>
-                        <div class="tds-data-display">
-                            <div class="tds-circle-meter">
-                                <svg viewBox="0 0 36 36" class="circular-chart">
-                                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <path class="circle" id="tds-circle-progress" stroke-dasharray="30, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <!-- 4 METRIC CARDS ROW (Exact match with reference screenshot) -->
+                    <div class="metric-quad-row">
+
+                        <!-- CARD 1: CIRCULAR SPEEDOMETER GAUGE -->
+                        <div class="card metric-box-card card-speedometer">
+                            <div class="speedometer-wrapper">
+                                <svg class="speedometer-svg" viewBox="0 0 200 130">
+                                    <!-- Background Arc -->
+                                    <path class="arc-bg" d="M 25 110 A 75 75 0 0 1 175 110" fill="none" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round" />
+                                    <!-- Progress Arc -->
+                                    <path id="speed-arc-progress" class="arc-fill" d="M 25 110 A 75 75 0 0 1 175 110" fill="none" stroke="#1A68FF" stroke-width="12" stroke-linecap="round" stroke-dasharray="235" stroke-dashoffset="118" />
                                 </svg>
-                                <div class="circle-text">
-                                    <span id="val-tds">148</span>
-                                    <small>PPM</small>
+                                <div class="speed-center-text">
+                                    <span class="speed-number" id="val-speed-display">48</span>
+                                    <span class="speed-unit" id="val-speed-unit">km/h</span>
                                 </div>
                             </div>
-                            <div class="tds-info">
-                                <div class="tds-quality" id="tds-quality-text">Air Layak / Aman</div>
-                                <div class="tds-desc">Deteksi kontaminasi lumpur & partikel air saat banjir atau gempa</div>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-
-                <!-- SIMULATOR & TESTING CONTROLS -->
-                <div class="card simulator-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <i class="fa-solid fa-gamepad text-secondary"></i>
-                            <h3>Simulator Bencana & Testing EWS</h3>
-                        </div>
-                        <span class="badge badge-info">Tool Uji Coba</span>
-                    </div>
-                    <div class="simulator-controls">
-                        <button class="btn-sim" id="btn-sim-normal" title="Kondisi Normal"><i class="fa-solid fa-shield-halved"></i> Reset Normal</button>
-                        <button class="btn-sim sim-warning" id="btn-sim-light-quake" title="Simulasi Gempa Ringan (3.5 SR)"><i class="fa-solid fa-house-chimney-crack"></i> Gempa Ringan (3.5 SR)</button>
-                        <button class="btn-sim sim-danger" id="btn-sim-heavy-quake" title="Simulasi Gempa Kuat (6.8 SR)"><i class="fa-solid fa-burst"></i> Gempa Dahsyat (6.8 SR)</button>
-                        <button class="btn-sim sim-flood" id="btn-sim-rain-flood" title="Simulasi Hujan Lebat & Banjir"><i class="fa-solid fa-cloud-showers-water"></i> Banjir & Hujan Lebat</button>
-                        <button class="btn-sim sim-combined" id="btn-sim-emergency" title="Simulasi Bencana Multi-Kondisi"><i class="fa-solid fa-triangle-exclamation"></i> Skenario Darurat Total</button>
-                    </div>
-                </div>
-
-            </section>
-
-            <!-- RIGHT COLUMN: INTERACTIVE GIS MAPPING & LIVE CHARTS -->
-            <section class="right-panel">
-                
-                <!-- VIEW MODE SWITCHER TABS -->
-                <div class="view-tabs-header">
-                    <div class="view-tabs-group">
-                        <button class="btn-tab-view active" id="tab-btn-map" data-view="map">
-                            <i class="fa-solid fa-map-location-dot text-success"></i> Peta OpenStreetMap (GIS)
-                        </button>
-                        <button class="btn-tab-view" id="tab-btn-charts" data-view="charts">
-                            <i class="fa-solid fa-chart-line text-primary"></i> Grafik Telemetri Lengkap
-                        </button>
-                        <button class="btn-tab-view" id="tab-btn-split" data-view="split">
-                            <i class="fa-solid fa-table-columns text-warning"></i> Tampilan Split (Peta + Grafik)
-                        </button>
-                    </div>
-                </div>
-
-                <!-- GIS MAP CARD -->
-                <div class="card map-card" id="main-map-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <i class="fa-solid fa-map text-success"></i>
-                            <h3>Pemantauan Geospasial OpenStreetMap</h3>
-                        </div>
-                        
-                        <!-- Map Layer & Controls Toolbar -->
-                        <div class="map-toolbar">
-                            <div class="select-wrapper">
-                                <select id="map-engine-select" title="Pilih Engine Peta OpenStreetMap">
-                                    <option value="leaflet-street">OpenStreetMap (Standard)</option>
-                                    <option value="leaflet-dark">OpenStreetMap (Dark GIS)</option>
-                                    <option value="leaflet-satellite">Citra Satelit (Esri GIS)</option>
-                                    <option value="gmaps">Google Maps (API Mode)</option>
-                                </select>
-                            </div>
-                            <button id="btn-recenter-map" class="btn-sm btn-outline" title="Pusatkan ke Stasiun Sensor"><i class="fa-solid fa-crosshairs"></i> Fokus</button>
-                            <button id="btn-toggle-radius" class="btn-sm btn-outline active" title="Toggle Radius Zona Bahaya"><i class="fa-solid fa-circle-dot"></i> Radius</button>
-                            <button id="btn-quick-set-location" class="btn-sm btn-primary" title="Atur / Cari Lokasi Stasiun Sensor"><i class="fa-solid fa-location-dot"></i> Set Lokasi</button>
-                        </div>
-                    </div>
-
-                    <!-- DIRECT LOCATION SEARCH & PRESETS BAR -->
-                    <div class="map-location-bar">
-                        <div class="loc-search-box">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input type="text" id="map-search-input" placeholder="Ketik nama kota / daerah (cth: Padang, Palu, Bandung, Jogja)..." autocomplete="off">
-                            <button id="btn-map-search-submit" class="btn-search-go">Cari & Set</button>
-                        </div>
-                        <div class="quick-presets-group">
-                            <span class="presets-label"><i class="fa-solid fa-bolt"></i> Preset Cepat:</span>
-                            <div class="presets-scroll">
-                                <button class="btn-preset" data-name="Stasiun Jakarta Pusat" data-lat="-6.2088" data-lng="106.8456">Jakarta</button>
-                                <button class="btn-preset" data-name="Stasiun Bencana Padang (Sumbar)" data-lat="-0.9471" data-lng="100.4172">Padang</button>
-                                <button class="btn-preset" data-name="Stasiun Sesar Palu-Koro (Sulteng)" data-lat="-0.9003" data-lng="119.8780">Palu</button>
-                                <button class="btn-preset" data-name="Stasiun Seismik Yogyakarta" data-lat="-7.7956" data-lng="110.3695">Yogyakarta</button>
-                                <button class="btn-preset" data-name="Stasiun Sesar Lembang (Bandung)" data-lat="-6.8180" data-lng="107.6160">Bandung</button>
-                                <button class="btn-preset" data-name="Stasiun Sensor Bali (Denpasar)" data-lat="-8.6705" data-lng="115.2126">Bali</button>
-                                <button class="btn-preset" data-name="Stasiun Seismik Aceh (Banda Aceh)" data-lat="5.5483" data-lng="95.3238">Aceh</button>
-                                <button class="btn-preset" data-name="Stasiun Gunung Semeru / Malang" data-lat="-8.1077" data-lng="112.9224">Malang</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Map Render Container -->
-                    <div class="map-view-wrapper">
-                        <!-- Leaflet GIS Map Div -->
-                        <div id="leaflet-map" class="map-canvas"></div>
-                        <!-- Google Maps Div -->
-                        <div id="google-map" class="map-canvas hidden"></div>
-                        
-                        <!-- Floating Map Legend Overlay -->
-                        <div class="map-legend">
-                            <h4><i class="fa-solid fa-layer-group"></i> Keterangan Peta</h4>
-                            <div class="legend-item"><span class="legend-dot station-dot"></span> Stasiun Sensor Anda (Bisa Digeser)</div>
-                            <div class="legend-item"><span class="legend-dot quake-danger-dot"></span> Radius Getaran Gempa</div>
-                            <div class="legend-item"><span class="legend-dot flood-zone-dot"></span> Potensi Genangan Banjir</div>
-                            <div class="legend-item"><span class="legend-dot bmkg-dot"></span> Gempa Terkini BMKG/USGS</div>
-                        </div>
-
-                        <!-- Current Station Floating Tag (Clickable to Edit) -->
-                        <div class="station-floating-card" id="station-floating-card" title="Klik untuk ubah nama / koordinat lokasi">
-                            <div class="st-icon"><i class="fa-solid fa-tower-broadcast"></i></div>
-                            <div class="st-details">
-                                <span class="st-name" id="display-station-name">Stasiun Sensor 01 - Jakarta Pusat</span>
-                                <span class="st-coords" id="display-station-coords">-6.2088° S, 106.8456° E</span>
-                            </div>
-                            <div class="st-edit-badge"><i class="fa-solid fa-pen-to-square"></i> Ubah</div>
-                        </div>
-
-                        <!-- Pin Drop Hint Overlay -->
-                        <div class="map-hint-banner" id="map-hint-banner">
-                            <i class="fa-solid fa-hand-pointer"></i> Klik lokasi mana saja di peta atau geser pin biru untuk memindahkan stasiun sensor
-                        </div>
-                    </div>
-                </div>
-
-                <!-- LIVE TELEMETRY CHARTS CARD -->
-                <div class="card charts-container-card hidden" id="main-charts-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <i class="fa-solid fa-chart-area text-primary"></i>
-                            <h3>Grafik Telemetri Multi-Sensor Real-Time</h3>
-                        </div>
-                        <div class="charts-toolbar">
-                            <button id="btn-pause-charts" class="btn-sm btn-outline"><i class="fa-solid fa-pause"></i> Jeda</button>
-                            <button id="btn-clear-charts" class="btn-sm btn-outline"><i class="fa-solid fa-rotate-left"></i> Reset Grafik</button>
-                        </div>
-                    </div>
-
-                    <!-- Charts Grid Container -->
-                    <div class="charts-grid">
-                        
-                        <!-- CHART 1: SEISMIC PGA & GAL -->
-                        <div class="chart-box">
-                            <div class="chart-box-header">
-                                <span class="chart-label"><i class="fa-solid fa-wave-square text-primary"></i> Tren Getaran Seismik (PGA & Gal)</span>
-                            </div>
-                            <div class="chart-canvas-wrapper">
-                                <canvas id="chart-seismic-canvas"></canvas>
+                            <div class="speed-label-text">Kecepatan Saat Ini</div>
+                            
+                            <div class="speed-limit-badge">
+                                <div class="limit-circle">
+                                    <span id="val-speed-limit">60</span>
+                                </div>
+                                <div class="limit-info">
+                                    <span class="limit-title">Batas Kecepatan</span>
+                                    <span class="limit-val">60 km/h</span>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- CHART 2: FLOOD & RAINFALL -->
-                        <div class="chart-box">
-                            <div class="chart-box-header">
-                                <span class="chart-label"><i class="fa-solid fa-cloud-showers-water text-info"></i> Muka Air Banjir (cm) & Curah Hujan (mm/jam)</span>
+                        <!-- CARD 2: FUEL GAUGE -->
+                        <div class="card metric-box-card card-fuel">
+                            <div class="card-icon-header">
+                                <i class="fa-solid fa-gas-pump icon-blue"></i>
                             </div>
-                            <div class="chart-canvas-wrapper">
-                                <canvas id="chart-flood-rain-canvas"></canvas>
+                            <div class="card-metric-title">Bahan Bakar</div>
+                            <div class="card-metric-value" id="val-fuel-display">62%</div>
+                            
+                            <div class="custom-progress-bar">
+                                <div class="progress-fill blue" id="fuel-progress-fill" style="width: 62%;"></div>
+                            </div>
+
+                            <div class="card-metric-footer">
+                                <div class="footer-bold" id="val-distance-est">± 440 km</div>
+                                <div class="footer-muted">Jarak Tempuh Estimasi</div>
                             </div>
                         </div>
 
-                        <!-- CHART 3: TDS WATER QUALITY -->
-                        <div class="chart-box">
-                            <div class="chart-box-header">
-                                <span class="chart-label"><i class="fa-solid fa-flask-vial text-emerald"></i> Kualitas Air & Konsentrasi Partikel TDS (PPM)</span>
+                        <!-- CARD 3: ENGINE TEMP -->
+                        <div class="card metric-box-card card-temp">
+                            <div class="card-icon-header">
+                                <i class="fa-solid fa-temperature-half icon-blue"></i>
                             </div>
-                            <div class="chart-canvas-wrapper">
-                                <canvas id="chart-tds-canvas"></canvas>
+                            <div class="card-metric-title">Suhu Mesin</div>
+                            <div class="card-metric-value" id="val-temp-display">86°C</div>
+
+                            <div class="custom-progress-bar">
+                                <div class="progress-fill green" id="temp-progress-fill" style="width: 65%;"></div>
+                            </div>
+
+                            <div class="card-metric-footer">
+                                <div class="status-indicator-dot green">
+                                    <span class="dot"></span>
+                                    <span class="txt" id="val-temp-status">Normal</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CARD 4: MAINTENANCE REMINDER -->
+                        <div class="card metric-box-card card-maintenance">
+                            <div class="card-icon-header">
+                                <i class="fa-solid fa-wrench icon-blue"></i>
+                            </div>
+                            <div class="card-metric-title">Pengingat Perawatan</div>
+
+                            <div class="maintenance-checklist">
+                                <div class="m-item">
+                                    <span class="m-dot yellow"></span>
+                                    <div class="m-texts">
+                                        <div class="m-name">Ganti Oli Mesin</div>
+                                        <div class="m-sub" id="val-oil-remaining">3.250 km lagi</div>
+                                    </div>
+                                </div>
+                                <div class="m-item">
+                                    <span class="m-dot green"></span>
+                                    <div class="m-texts">
+                                        <div class="m-name">Filter Udara</div>
+                                        <div class="m-sub" id="val-filter-remaining">8.750 km lagi</div>
+                                    </div>
+                                </div>
+                                <div class="m-item">
+                                    <span class="m-dot green"></span>
+                                    <div class="m-texts">
+                                        <div class="m-name">Ban</div>
+                                        <div class="m-sub" id="val-tire-remaining">12.000 km lagi</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                     </div>
-                </div>
 
-                <!-- BOTTOM RIGHT: REALTIME TELEMETRY LOGS & BMKG LIVE FEED -->
-                <div class="right-sub-grid">
-                    
-                    <!-- REALTIME EVENT LOGS -->
-                    <div class="card event-log-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fa-solid fa-list-check text-warning"></i>
-                                <h3>Riwayat Log & Sensor Feed</h3>
+                </section>
+
+                <!-- RIGHT COLUMN (VEHICLE PROFILE & RECENT TRIP TIMELINE) -->
+                <aside class="right-detail-column">
+
+                    <!-- TOP RIGHT CARD: VEHICLE PROFILE (Matches BE 1234 XX) -->
+                    <div class="card vehicle-profile-card">
+                        <div class="profile-card-header">
+                            <div class="car-plate-group">
+                                <i class="fa-solid fa-car-side car-plate-icon"></i>
+                                <h2 class="car-plate-title" id="display-plate-number">BE 1234 XX</h2>
                             </div>
-                            <button id="btn-export-csv" class="btn-sm btn-outline" title="Export Log ke CSV"><i class="fa-solid fa-download"></i> CSV</button>
+                            <span class="badge-status-active">Aktif</span>
                         </div>
-                        <div class="log-table-container">
-                            <table class="log-table">
-                                <thead>
-                                    <tr>
-                                        <th>Waktu</th>
-                                        <th>Jenis Bencana</th>
-                                        <th>Nilai Sensor</th>
-                                        <th>Status EWS</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="log-table-body">
-                                    <!-- Dynamic log rows inserted by JS -->
-                                </tbody>
-                            </table>
+
+                        <div class="car-illustration-wrap">
+                            <svg class="car-vector-img" viewBox="0 0 320 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <ellipse cx="160" cy="130" rx="140" ry="8" fill="#E2E8F0"/>
+                                <!-- Car Body -->
+                                <path d="M40 100 L60 65 Q80 50 120 48 L200 48 Q235 50 255 70 L280 85 Q295 92 295 108 L295 115 Q295 118 290 118 L260 118 Q260 100 240 100 Q220 100 220 118 L110 118 Q110 100 90 100 Q70 100 70 118 L40 118 Q35 118 35 112 L35 105 Q35 100 40 100 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2"/>
+                                <!-- Roof & Windows -->
+                                <path d="M115 54 L195 54 Q220 55 235 70 L250 82 L70 82 L85 68 Q98 55 115 54 Z" fill="#3B82F6" opacity="0.85"/>
+                                <line x1="165" y1="54" x2="165" y2="82" stroke="#FFFFFF" stroke-width="3"/>
+                                <!-- Headlights & Details -->
+                                <path d="M275 88 L290 92 L285 98 L270 95 Z" fill="#FBBF24"/>
+                                <path d="M38 98 L48 98 L48 106 L38 106 Z" fill="#EF4444"/>
+                                <!-- Wheels -->
+                                <circle cx="90" cy="115" r="18" fill="#1E293B"/>
+                                <circle cx="90" cy="115" r="10" fill="#94A3B8"/>
+                                <circle cx="240" cy="115" r="18" fill="#1E293B"/>
+                                <circle cx="240" cy="115" r="10" fill="#94A3B8"/>
+                            </svg>
+                        </div>
+
+                        <div class="vehicle-title-wrap">
+                            <h3 class="vehicle-name" id="display-vehicle-model">Toyota Avanza</h3>
+                            <span class="vehicle-type">Mobil Keluarga</span>
+                            <div class="vehicle-odo-pill">
+                                <span>Odo: <strong id="display-odo-badge">97.248 km</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="specs-data-list">
+                            <div class="spec-row">
+                                <div class="spec-label">
+                                    <i class="fa-solid fa-gauge-high text-primary"></i> Kecepatan
+                                </div>
+                                <div class="spec-val" id="spec-val-speed">48 km/h</div>
+                            </div>
+                            <div class="spec-row">
+                                <div class="spec-label">
+                                    <i class="fa-solid fa-route text-primary"></i> Jarak Tempuh (Trip)
+                                </div>
+                                <div class="spec-val" id="spec-val-trip">12.6 km</div>
+                            </div>
+                            <div class="spec-row">
+                                <div class="spec-label">
+                                    <i class="fa-solid fa-road text-primary"></i> Odo Total
+                                </div>
+                                <div class="spec-val" id="spec-val-odo">97.248 km</div>
+                            </div>
+                            <div class="spec-row">
+                                <div class="spec-label">
+                                    <i class="fa-regular fa-calendar-days text-primary"></i> Tanggal & Waktu
+                                </div>
+                                <div class="spec-val" id="spec-val-datetime">18 Sep 2025 08:21</div>
+                            </div>
+                            <div class="spec-row">
+                                <div class="spec-label">
+                                    <i class="fa-solid fa-location-dot text-primary"></i> Lokasi
+                                </div>
+                                <div class="spec-val text-clickable" id="spec-val-location" title="Klik untuk fokus di peta">
+                                    -5.4267, 105.3179
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- BMKG & USGS NATIONAL EARTHQUAKE FEED -->
-                    <div class="card bmkg-feed-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <i class="fa-solid fa-earth-asia text-danger"></i>
-                                <h3>Data Gempa BMKG Terkini</h3>
+                    <!-- BOTTOM RIGHT CARD: RECENT TRIP TIMELINE -->
+                    <div class="card trip-history-card">
+                        <div class="trip-card-header">
+                            <div class="trip-header-title">
+                                <i class="fa-solid fa-route text-primary"></i>
+                                <h3>Riwayat Perjalanan Terakhir</h3>
                             </div>
-                            <button id="btn-refresh-bmkg" class="btn-sm btn-outline" title="Refresh Data BMKG"><i class="fa-solid fa-rotate"></i></button>
+                            <a href="#riwayat-lengkap" id="btn-view-all-trips" class="link-view-all">Lihat Semua</a>
                         </div>
-                        <div class="bmkg-feed-content" id="bmkg-feed-content">
-                            <div class="bmkg-loading"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data BMKG Indonesia & Global USGS...</div>
+
+                        <div class="trip-timeline-list" id="trip-timeline-container">
+                            <!-- Timeline Node 1 -->
+                            <div class="timeline-entry">
+                                <div class="t-node">
+                                    <span class="blue-dot"></span>
+                                    <div class="v-line"></div>
+                                </div>
+                                <div class="t-content">
+                                    <span class="t-time">08:15</span>
+                                    <div class="t-desc">
+                                        <strong>Start - Jl. Terusan Ryacudu</strong>
+                                        <div class="t-sub">-5.4268, 105.3172</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Timeline Node 2 -->
+                            <div class="timeline-entry">
+                                <div class="t-node">
+                                    <span class="blue-dot"></span>
+                                    <div class="v-line"></div>
+                                </div>
+                                <div class="t-content">
+                                    <span class="t-time">08:18</span>
+                                    <div class="t-desc">
+                                        <strong>Kecepatan 65 km/h</strong>
+                                        <div class="t-sub">Jl. Terusan Ryacudu</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Timeline Node 3 -->
+                            <div class="timeline-entry">
+                                <div class="t-node">
+                                    <span class="blue-dot"></span>
+                                    <div class="v-line"></div>
+                                </div>
+                                <div class="t-content">
+                                    <span class="t-time">08:20</span>
+                                    <div class="t-desc">
+                                        <strong>Kecepatan 48 km/h</strong>
+                                        <div class="t-sub">Dekat Institut Teknologi Sumatera</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Timeline Node 4 -->
+                            <div class="timeline-entry">
+                                <div class="t-node">
+                                    <span class="blue-dot"></span>
+                                </div>
+                                <div class="t-content">
+                                    <span class="t-time">08:21</span>
+                                    <div class="t-desc">
+                                        <strong>Lokasi Saat Ini</strong>
+                                        <div class="t-sub">-5.4267, 105.3179</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                </div>
+                </aside>
 
-            </section>
-        </main>
-
-        <!-- FOOTER -->
-        <footer class="app-footer">
-            <div class="footer-left">
-                <span>GeoShield Early Warning System • Open-Source Multi-Disaster IoT Architecture</span>
             </div>
-            <div class="footer-center">
-                <span>Sensor: MPU-6050 Seismik | HC-SR04 Banjir | Raindrop Sensor | Analog TDS Meter</span>
-            </div>
-            <div class="footer-right">
-                <span>Versi 1.0.0 • Siap Terhubung ke ESP32 & Arduino</span>
-            </div>
-        </footer>
-    </div>
 
-    <!-- MODAL 1: SETTINGS & CONFIGURATION MODAL -->
-    <div id="modal-config" class="modal-overlay hidden">
-        <div class="modal-box">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-sliders"></i> Konfigurasi Stasiun & Google Maps</h3>
-                <button class="btn-close-modal" id="btn-close-config">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="form-station-config">
-                    <div class="form-group">
-                        <label for="cfg-station-name"><i class="fa-solid fa-tag text-primary"></i> Nama Stasiun Sensor / Posko ESP32</label>
-                        <input type="text" id="cfg-station-name" class="form-input" value="Stasiun Sensor 01 - Jakarta Pusat" placeholder="cth: Posko BPBD Kalianda / Stasiun ESP32 Lampung" required>
-                        <small class="form-hint">Nama posko atau lokasi tempat ESP32 dipasang.</small>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="cfg-lat"><i class="fa-solid fa-arrows-up-down text-info"></i> Latitude (Garis Lintang)</label>
-                            <input type="text" id="cfg-lat" class="form-input" value="-6.2088" placeholder="-6.2088 atau -5,4520" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="cfg-lng"><i class="fa-solid fa-arrows-left-right text-info"></i> Longitude (Garis Bujur)</label>
-                            <input type="text" id="cfg-lng" class="form-input" value="106.8456" placeholder="106.8456 atau 105,3957" required>
-                        </div>
-                    </div>
-
-                    <!-- AUTO-CALIBRATION & SYNC TOOLBAR -->
-                    <div class="loc-action-buttons-group">
-                        <button type="button" id="btn-get-current-loc" class="btn btn-sm btn-outline">
-                            <i class="fa-solid fa-location-crosshairs text-primary"></i> Gunakan GPS Saya
-                        </button>
-                        <button type="button" id="btn-sync-esp-location" class="btn btn-sm btn-outline btn-esp-sync">
-                            <i class="fa-solid fa-microchip text-warning"></i> Kalibrasi dari ESP32
-                        </button>
-                    </div>
-
-                    <!-- AUTO-CALIBRATION TOGGLE CARD -->
-                    <div class="auto-sync-card">
-                        <div class="auto-sync-header">
-                            <label class="switch-toggle">
-                                <input type="checkbox" id="cfg-auto-sync-esp" checked>
-                                <span class="slider round"></span>
-                            </label>
-                            <div class="auto-sync-text">
-                                <strong>Otomatis Kalibrasi Saat ESP32 Terhubung</strong>
-                                <small>Web akan langsung otomatis menggeser peta & menyesuaikan koordinat stasiun saat menerima data payload dari ESP32.</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-divider"></div>
-
-                    <div class="form-group">
-                        <label for="cfg-iot-endpoint"><i class="fa-solid fa-network-wired text-success"></i> Custom IoT Webhook / IP ESP32 REST Endpoint (Opsional)</label>
-                        <input type="text" id="cfg-iot-endpoint" class="form-input" placeholder="http://192.168.1.100/api/telemetry">
-                        <small class="form-hint">Masukkan alamat IP ESP32 lokal atau server penerima data.</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="cfg-gmaps-key"><i class="fa-solid fa-map text-warning"></i> Google Maps JavaScript API Key (Opsional)</label>
-                        <input type="text" id="cfg-gmaps-key" class="form-input" placeholder="AIzaSy..." value="">
-                        <small class="form-hint">Jika dikosongkan, peta tetap berjalan normal menggunakan OpenStreetMap & Satelit GIS tanpa biaya.</small>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" id="btn-cancel-config">Batal</button>
-                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Simpan & Terapkan</button>
-                    </div>
-                </form>
-            </div>
         </div>
-    </div>
 
-    <!-- MODAL 2: HARDWARE & ESP32 CIRCUIT GUIDE MODAL -->
-    <div id="modal-hardware" class="modal-overlay hidden">
-        <div class="modal-box modal-lg">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-microchip"></i> Skema Rangkaian Sensor & Firmware ESP32</h3>
-                <button class="btn-close-modal" id="btn-close-hardware">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="hardware-guide-tabs">
-                    <button class="tab-btn active" data-tab="pinout">Pinout & Wiring</button>
-                    <button class="tab-btn" data-tab="arduino">Source Code ESP32 (.ino)</button>
-                    <button class="tab-btn" data-tab="json">Format Payload JSON</button>
-                </div>
-
-                <!-- TAB 1: PINOUT WIRING -->
-                <div class="tab-pane active" id="pane-pinout">
-                    <h4>Koneksi Pin ESP32 DevKit V1 ke Sensor:</h4>
-                    <div class="table-responsive">
-                        <table class="hardware-table">
-                            <thead>
-                                <tr>
-                                    <th>Sensor</th>
-                                    <th>Tipe Modul</th>
-                                    <th>Pin Sensor</th>
-                                    <th>Pin ESP32</th>
-                                    <th>Keterangan</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><strong>Getaran / Gempa</strong></td>
-                                    <td>MPU-6050 (I2C)</td>
-                                    <td>SCL, SDA, VCC, GND</td>
-                                    <td>GPIO 22 (SCL), GPIO 21 (SDA), 3.3V, GND</td>
-                                    <td>Akselerometer 3-Sumbu untuk deteksi gempa & seismograf</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Banjir (Level Air)</strong></td>
-                                    <td>HC-SR04 Ultrasonic</td>
-                                    <td>TRIG, ECHO, VCC, GND</td>
-                                    <td>GPIO 5 (TRIG), GPIO 18 (ECHO), 5V, GND</td>
-                                    <td>Mengukur jarak muka air sungai / drainase</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Sensor Hujan</strong></td>
-                                    <td>FC-37 / Raindrop</td>
-                                    <td>A0 (Analog), VCC, GND</td>
-                                    <td>GPIO 34 (ADC1), 3.3V, GND</td>
-                                    <td>Deteksi intensitas butiran hujan</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Sensor TDS</strong></td>
-                                    <td>Analog TDS Meter V1.0</td>
-                                    <td>Signal A0, VCC, GND</td>
-                                    <td>GPIO 35 (ADC1), 3.3V/5V, GND</td>
-                                    <td>Mendeteksi Total Zat Terlarut / Kekeruhan air</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Buzzer Fisik EWS</strong></td>
-                                    <td>Active Buzzer 5V</td>
-                                    <td>+, -</td>
-                                    <td>GPIO 4, GND</td>
-                                    <td>Alarm sirine bunyi darurat di lokasi sensor</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- TAB 2: ARDUINO CODE -->
-                <div class="tab-pane" id="pane-arduino">
-                    <p>Copy kode ini dan upload menggunakan <strong>Arduino IDE</strong> ke board ESP32 Anda. (File lengkap tersedia di folder <code>firmware/esp32_disaster_station.ino</code>):</p>
-                    <pre><code class="code-block" id="esp32-code-snippet">
-/*
- * GeoShield EWS - ESP32 Disaster Station Firmware
- * Sensor: MPU6050 (Gempa), HC-SR04 (Banjir), FC-37 (Hujan), Analog TDS
- */
-#include &lt;WiFi.h&gt;
-#include &lt;HTTPClient.h&gt;
-#include &lt;Wire.h&gt;
-#include &lt;MPU6050.h&gt;
-
-const char* ssid = "NAMA_WIFI_ANDA";
-const char* password = "PASSWORD_WIFI";
-const char* serverUrl = "http://YOUR_SERVER_IP_OR_DOMAIN/api/telemetry";
-
-MPU6050 mpu;
-#define TRIG_PIN 5
-#define ECHO_PIN 18
-#define RAIN_PIN 34
-#define TDS_PIN  35
-#define BUZZER_PIN 4
-
-void setup() {
-  Serial.begin(115200);
-  Wire.begin(21, 22);
-  mpu.initialize();
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  pinMode(RAIN_PIN, INPUT);
-  pinMode(TDS_PIN, INPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
-  Serial.println("\nWiFi Terkoneksi!");
-}
-
-void loop() {
-  // 1. Baca Akselerasi MPU6050 (Gempa)
-  int16_t ax, ay, az;
-  mpu.getAcceleration(&ax, &ay, &az);
-  float pga_g = sqrt(ax*ax + ay*ay + az*az) / 16384.0;
-  
-  // 2. Baca Muka Air HC-SR04 (Banjir)
-  digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
-  digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  long duration = pulseIn(ECHO_PIN, HIGH);
-  float water_cm = duration * 0.034 / 2;
-  
-  // 3. Baca Sensor Hujan & TDS
-  int rainRaw = analogRead(RAIN_PIN);
-  int tdsRaw = analogRead(TDS_PIN);
-  float tdsPpm = (tdsRaw / 4095.0) * 1000.0;
-  
-  // Kirim JSON ke Web Dashboard
-  if(WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(serverUrl);
-    http.addHeader("Content-Type", "application/json");
-    String payload = String("{\"station_id\":\"ST-01\",\"pga\":") + pga_g + 
-                     ",\"water_level\":" + water_cm + 
-                     ",\"rain_raw\":" + rainRaw + 
-                     ",\"tds_ppm\":" + tdsPpm + "}";
-    int httpResponseCode = http.POST(payload);
-    http.end();
-  }
-  delay(100);
-}
-                    </code></pre>
-                </div>
-
-                <!-- TAB 3: JSON FORMAT -->
-                <div class="tab-pane" id="pane-json">
-                    <h4>Spesifikasi Payload JSON Telemetri:</h4>
-                    <pre><code class="code-block">{
-  "station_id": "ST-JAKARTA-01",
-  "timestamp": 1726017600000,
-  "seismic": {
-    "pga_g": 0.045,
-    "magnitude": 4.2,
-    "frequency_hz": 4.5,
-    "status": "WASPADA"
-  },
-  "flood": {
-    "water_level_cm": 115.4,
-    "status": "SIAGA"
-  },
-  "rain": {
-    "rain_rate_mmh": 45.2,
-    "raw_analog": 1240,
-    "condition": "Hujan Lebat"
-  },
-  "water_quality": {
-    "tds_ppm": 320,
-    "status": "Tercemar Ringan"
-  },
-  "location": {
-    "lat": -6.2088,
-    "lng": 106.8456
-  }
-}</code></pre>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <!-- Application Scripts -->
-    <script src="js/ews.js"></script>
-    <script src="js/sensors.js"></script>
-    <script src="js/charts.js"></script>
-    <script src="js/map.js"></script>
-    <script src="js/bmkg.js"></script>
-    <script src="js/iot.js"></script>
-    <script src="js/app.js"></script>
+    <script src="static/js/provisioning.js"></script>
+    <script src="static/js/map.js"></script>
+    <script src="static/js/app.js"></script>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('static/sw.js')
+                    .then(reg => console.log('[PWA] ServiceWorker registered', reg.scope))
+                    .catch(err => console.warn('[PWA] ServiceWorker failed', err));
+            });
+        }
+    </script>
 </body>
 </html>
