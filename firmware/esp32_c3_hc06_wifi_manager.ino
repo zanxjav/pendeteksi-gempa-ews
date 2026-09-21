@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <Wire.h>
 #include <Preferences.h>
@@ -91,7 +92,8 @@ const char* default_password = "cicing77";
 String savedSSID       = "";
 String savedPass       = "";
 String pendingSSID     = "";
-String savedServerUrl  = "http://10.11.207.118:8000/api/telemetry/";
+// Endpoint Telemetri Resmi Web Django Live Cloudflare
+String savedServerUrl  = "https://farm-slim-yea-history.trycloudflare.com/api/telemetry/";
 String savedStationId  = "EWS-BDL-01";
 String savedStationName= "Posko EWS ITERA - Bandar Lampung";
 float  savedLat        = -5.4267;
@@ -203,6 +205,9 @@ void setup() {
   savedSSID       = cleanString(preferences.getString("ssid", ""));
   savedPass       = cleanString(preferences.getString("pass", ""));
   savedServerUrl  = preferences.getString("server", savedServerUrl);
+  if (savedServerUrl.indexOf("10.11.207.118") != -1) {
+    savedServerUrl = "https://farm-slim-yea-history.trycloudflare.com/api/telemetry/";
+  }
   savedStationId  = preferences.getString("station_id", savedStationId);
   savedStationName= preferences.getString("station_name", savedStationName);
   savedLat        = preferences.getFloat("lat", savedLat);
@@ -554,9 +559,17 @@ void sendTelemetryHttp(float pga, float gal, String mmi, float waterLevel, int r
   if (WiFi.status() != WL_CONNECTED || savedServerUrl.length() == 0) return;
 
   HTTPClient http;
-  http.begin(savedServerUrl);
+  if (savedServerUrl.startsWith("https://")) {
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure(); // Bypass verifikasi sertifikat SSL untuk kecepatan & fleksibilitas IoT
+    http.begin(secureClient, savedServerUrl);
+  } else {
+    WiFiClient client;
+    http.begin(client, savedServerUrl);
+  }
+
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(2500);
+  http.setTimeout(3000);
 
   String json = "{";
   json += "\"station_id\":\"" + savedStationId + "\",";
@@ -569,9 +582,10 @@ void sendTelemetryHttp(float pga, float gal, String mmi, float waterLevel, int r
   json += "}";
 
   int code = http.POST(json);
-  if (code != HTTP_CODE_OK && code != HTTP_CODE_CREATED) {
-    // Log error jika gagal
-    // Serial.println("⚠️ HTTP Telemetry Error: " + String(code));
+  if (code == HTTP_CODE_OK || code == HTTP_CODE_CREATED) {
+    Serial.println("📡 [TELEMETRY] Data Berhasil Terkirim ke Web GIS Monitoring!");
+  } else {
+    Serial.println("⚠️ [TELEMETRY ERROR] HTTP Status: " + String(code));
   }
   http.end();
 }
