@@ -24,8 +24,10 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
 
-    // URL Resmi Aplikasi GeoShield EWS (Live Hosted & Local Fallback)
-    public static final String HOSTED_URL = "https://zanxjav.github.io/pendeteksi-gempa-ews/";
+    // URL Web Django Resmi (Mandiri via Cloudflare Tunnel & Render)
+    public static final String DJANGO_OFFICIAL_URL = "https://farm-slim-yea-history.trycloudflare.com";
+    public static final String GITHUB_FALLBACK_URL  = "https://zanxjav.github.io/pendeteksi-gempa-ews/";
+    public static final String HOSTED_URL           = DJANGO_OFFICIAL_URL;
     private static final int PERMISSION_REQUEST_CODE = 101;
 
     private WebView webView;
