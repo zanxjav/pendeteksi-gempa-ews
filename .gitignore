@@ -13,3 +13,9 @@ env/
 .vscode/
 .idea/
 .firebase/
+.gradle/
+build/
+android_studio_app/.gradle/
+android_studio_app/build/
+android_studio_app/app/build/
+
